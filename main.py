@@ -7,7 +7,7 @@ from threading import Thread
 # --- 1. НАСТРОЙКА ДЛЯ RENDER ---
 app = Flask('')
 @app.route('/')
-def home(): return "Star Shop is Running!"
+def home(): return "Shop is Online"
 
 def run():
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
@@ -20,7 +20,7 @@ bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
 # НАСТРОЙКИ
-ADMIN_ID = 1411441331
+ADMIN_ID = 123456789  # ВСТАВЬ СВОЙ ID
 CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 
 # ЦЕНЫ
@@ -52,11 +52,17 @@ def main_menu_markup(user_id):
 
 def shop_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
+    # Спецпредложение сверху
     markup.row(types.InlineKeyboardButton("🎁 ОСОБОЕ ПРЕДЛОЖЕНИЕ (1000 шт)", callback_data="special"))
+    
+    # Кнопки товаров
+    btns = []
     for k, v in STARS_PACKS.items():
         if k == "special": continue
         prefix = "✅ " if k == "p250" else "🔥 " if k == "p300" else "💎 " if k == "p500" else ""
-        markup.insert(types.InlineKeyboardButton(f"{prefix}{v['name']} — {v['price']:,} UZS".replace(',', ' '), callback_data=k))
+        btns.append(types.InlineKeyboardButton(f"{prefix}{v['name']} — {v['price']:,} UZS".replace(',', ' '), callback_data=k))
+    
+    markup.add(*btns) # Здесь было .insert, теперь исправлено на .add
     markup.row(types.InlineKeyboardButton("✨ ВВЕСТИ СВОЮ СУММУ", callback_data="ask_custom"))
     markup.row(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
     return markup
@@ -89,9 +95,12 @@ def handle_query(call):
         show_payment_details(uid, mid, item['count'], item['price'])
 
     elif call.data.startswith("paid_"):
-        data = call.data.split("_")
-        amount, price = data[1], data[2]
+        _, amount, price = call.data.split("_")
         ask_for_receipt(uid, mid, amount, price)
+
+    elif call.data == "profile":
+        bot.edit_message_text(f"<b>👤 Профиль</b>\nID: <code>{uid}</code>\nБаланс: 0 ⭐", uid, mid, 
+                              parse_mode='HTML', reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")))
 
 # --- ЛОГИКА ОПЛАТЫ ---
 
@@ -117,27 +126,26 @@ def ask_for_receipt(uid, mid, amount, price):
         "Пожалуйста, предоставьте чек за оплату.\n"
         "Нажмите кнопку ниже, чтобы отправить фото."
     )
+    # Кнопка для вида, но бот просто будет ждать фото после этого текста
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📸 Предоставить чек", callback_data=f"send_photo_{amount}_{price}"))
+    markup.add(types.InlineKeyboardButton("📸 Предоставить чек (отправьте фото)", callback_data="ignore"))
     
-    # Мы используем простое сообщение, чтобы пользователь понимал, что нужно скинуть фото
-    bot.edit_message_text(text, uid, mid, parse_mode='HTML')
-    bot.send_message(uid, "📤 <b>Отправьте фото чека прямо сейчас:</b>", parse_mode='HTML')
+    bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=markup)
     bot.register_next_step_handler_by_chat_id(uid, process_final_step, amount, price)
 
 def process_final_step(message, amount, price):
     uid = message.from_user.id
     
     if message.content_type != 'photo':
-        msg = bot.send_message(uid, "⚠️ Пожалуйста, отправьте именно <b>фотографию</b> чека!")
+        msg = bot.send_message(uid, "⚠️ Пожалуйста, отправьте <b>фотографию</b> (чек)!")
         bot.register_next_step_handler(msg, process_final_step, amount, price)
         return
 
-    # Ответ пользователю
+    # Финальный ответ пользователю
     bot.send_message(uid, "✅ <b>Ваша заявка принята и будет обработана админами, ожидайте ответ!</b>", 
                      parse_mode='HTML', reply_markup=main_menu_markup(uid))
 
-    # Уведомление тебе
+    # Уведомление админу
     admin_text = (
         f"🚀 <b>НОВЫЙ ЗАКАЗ!</b>\n"
         f"──────────────────\n"
@@ -158,7 +166,7 @@ def process_custom_amount(message):
             bot.send_message(uid, "❌ Минимум 100 ⭐", reply_markup=shop_menu_markup())
             return
         price = amount * (160 if amount >= 250 else 180)
-        show_payment_details(uid, message.id, amount, price)
+        show_payment_details(uid, None, amount, price) # Передаем None, так как это новое сообщение
     except:
         bot.send_message(uid, "⚠️ Введите число.", reply_markup=shop_menu_markup())
 
