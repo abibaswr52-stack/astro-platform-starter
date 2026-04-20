@@ -7,7 +7,7 @@ from threading import Thread
 # --- 1. НАСТРОЙКА ДЛЯ RENDER (АНТИ-СОН) ---
 app = Flask('')
 @app.route('/')
-def home(): return "Магазин звезд активен 24/7!"
+def home(): return "Бот-магазин активен 24/7!"
 
 def run():
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
@@ -17,22 +17,21 @@ Thread(target=run).start()
 # --- 2. ИНИЦИАЛИЗАЦИЯ БОТА ---
 TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
-
-# Сбрасываем старые соединения, чтобы не было ошибки 409 Conflict
 bot.remove_webhook()
 
 # НАСТРОЙКИ
 ADMIN_ID = 123456789  # <--- ВСТАВЬ СВОЙ ID СЮДА
 ADMIN_USERNAME = "@yngsafar"
 
-# ДАННЫЕ МАГАЗИНА (Твоя сетка цен + ОПТ)
+# ДАННЫЕ МАГАЗИНА
 STARS_PACKS = {
+    "special": {"name": "🎁 ОСОБОЕ ПРЕДЛОЖЕНИЕ", "price": "145,000 UZS", "desc": "💎 1000 звёзд по супер-цене! (Ограничено)"},
     "p100": {"name": "⭐ 100", "price": "18,000 UZS", "desc": "Базовый пакет"},
     "p150": {"name": "⭐ 150", "price": "27,000 UZS", "desc": "Стандартный набор"},
     "p200": {"name": "⭐ 200", "price": "36,000 UZS", "desc": "Больше звезд — больше возможностей"},
     "p250": {"name": "⭐ 250", "price": "40,000 UZS", "desc": "✅ Оптимальный вариант (Скидка!)"},
     "p300": {"name": "⭐ 300", "price": "48,000 UZS", "desc": "🔥 Популярный выбор"},
-    "p350": {"name": "⭐ 350", "price": "56,000 UZS", "desc": "Выгоднее, чем поштучно"},
+    "p350": {"name": "⭐ 350", "price": "56,000 UZS", "desc": "Цена за 100 шт снижена"},
     "p400": {"name": "⭐ 400", "price": "64,000 UZS", "desc": "Оптовая цена"},
     "p450": {"name": "⭐ 450", "price": "72,000 UZS", "desc": "Для продвинутых игроков"},
     "p500": {"name": "⭐ 500", "price": "80,000 UZS", "desc": "💎 Самый выгодный вариант"}
@@ -53,8 +52,12 @@ def main_menu_markup(user_id):
 
 def shop_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
+    # Кнопка особого предложения сверху на всю ширину
+    markup.row(types.InlineKeyboardButton("🎁 ОСОБОЕ ПРЕДЛОЖЕНИЕ (1000 шт)", callback_data="special"))
+    
     btns = []
     for k, v in STARS_PACKS.items():
+        if k == "special": continue
         prefix = ""
         if k == "p250": prefix = "✅ "
         if k == "p300": prefix = "🔥 "
@@ -62,7 +65,7 @@ def shop_menu_markup():
         btns.append(types.InlineKeyboardButton(f"{prefix}{v['name']} — {v['price']}", callback_data=k))
     
     markup.add(*btns)
-    markup.row(types.InlineKeyboardButton("✨ СВОЯ СУММА (ОТ 500 ⭐)", callback_data="custom_amount"))
+    markup.row(types.InlineKeyboardButton("✨ ВВЕСТИ СВОЮ СУММУ", callback_data="ask_custom"))
     markup.row(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu"))
     return markup
 
@@ -72,9 +75,8 @@ def shop_menu_markup():
 def start(message):
     bot.send_message(
         message.chat.id,
-        f"<b>Привет, {message.from_user.first_name}!</b>\n\nДобро пожаловать в магазин звёзд. Выберите нужный раздел:",
-        parse_mode='HTML',
-        reply_markup=main_menu_markup(message.from_user.id)
+        f"<b>Привет, {message.from_user.first_name}!</b>\nДобро пожаловать в магазин звёзд.",
+        parse_mode='HTML', reply_markup=main_menu_markup(message.from_user.id)
     )
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -87,63 +89,53 @@ def handle_query(call):
         elif call.data == "open_shop":
             bot.edit_message_text("<b>Выберите количество звёзд:</b>", uid, call.message.id, parse_mode='HTML', reply_markup=shop_menu_markup())
 
+        elif call.data == "ask_custom":
+            msg = bot.edit_message_text("<b>Введите количество звёзд (число):</b>\nНапример: 693", uid, call.message.id, parse_mode='HTML')
+            bot.register_next_step_handler(msg, process_custom_amount)
+
         elif call.data == "profile":
-            text = (
-                f"<b>👤 Ваш профиль</b>\n\n"
-                f"<b>Имя:</b> {call.from_user.first_name}\n"
-                f"<b>Ваш ID:</b> <code>{uid}</code>\n"
-                f"<b>Баланс:</b> 0 ⭐\n\n"
-                f"<i>История покупок пуста.</i>"
-            )
-            markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-            bot.edit_message_text(text, uid, call.message.id, parse_mode='HTML', reply_markup=markup)
+            text = f"<b>👤 Профиль</b>\n\n<b>Имя:</b> {call.from_user.first_name}\n<b>ID:</b> <code>{uid}</code>\n<b>Баланс:</b> 0 ⭐"
+            bot.edit_message_text(text, uid, call.message.id, parse_mode='HTML', 
+                                  reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")))
 
         elif call.data == "help":
-            text = f"<b>❓ Поддержка</b>\n\nЕсть вопросы по оплате или получению звёзд?\nНапишите нашему админу:"
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("👨‍💻 Связаться с @yngsafar", url=f"https://t.me/yngsafar"))
-            markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-            bot.edit_message_text(text, uid, call.message.id, parse_mode='HTML', reply_markup=markup)
-
-        elif call.data == "custom_amount":
-            text = (
-                "<b>💎 Индивидуальный заказ</b>\n\n"
-                "Хотите купить любое другое количество звёзд?\n\n"
-                "🔹 <b>Курс:</b> 100 ⭐ = 18,000 UZS\n"
-                "🔹 <b>Для крупных сумм (от 500 ⭐)</b> — персональные скидки!\n\n"
-                "Напишите админу желаемую сумму:"
-            )
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("✉️ Написать админу", url="https://t.me/yngsafar"))
-            markup.add(types.InlineKeyboardButton("⬅️ Назад в магазин", callback_data="open_shop"))
-            bot.edit_message_text(text, uid, call.message.id, parse_mode='HTML', reply_markup=markup)
-
-        elif call.data == "admin_panel" and uid == ADMIN_ID:
-            bot.edit_message_text("<b>🛠 Админ-панель</b>\n\nБот работает в штатном режиме.", uid, call.message.id, parse_mode='HTML', 
-                                  reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")))
+            markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("👨‍💻 Админ @yngsafar", url=f"https://t.me/yngsafar"),
+                                                     types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+            bot.edit_message_text("<b>❓ Поддержка</b>\nПо всем вопросам пишите админу:", uid, call.message.id, parse_mode='HTML', reply_markup=markup)
 
         elif call.data in STARS_PACKS:
             item = STARS_PACKS[call.data]
-            tag = ""
-            if call.data == "p250": tag = "\n\n📍 <b>Статус: Оптимальный вариант</b>"
-            if call.data == "p300": tag = "\n\n📍 <b>Статус: Популярный выбор</b>"
-            if call.data == "p500": tag = "\n\n📍 <b>Статус: Самый выгодный вариант</b>"
-
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(f"💳 Купить за {item['price']}", url="https://t.me/yngsafar"))
-            markup.add(types.InlineKeyboardButton("⬅️ Назад к выбору", callback_data="open_shop"))
-            
-            bot.edit_message_text(
-                f"<b>Пакет: {item['name']} звёзд</b>\n"
-                f"<i>{item['desc']}</i>"
-                f"{tag}\n\n"
-                f"<b>💰 Сумма к оплате: {item['price']}</b>",
-                uid, call.message.id, parse_mode='HTML', reply_markup=markup
-            )
+            markup.add(types.InlineKeyboardButton(f"💳 Купить за {item['price']}", url=f"https://t.me/yngsafar"))
+            markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="open_shop"))
+            bot.edit_message_text(f"<b>Пакет: {item['name']}</b>\n<i>{item['desc']}</i>\n\n<b>💰 К оплате: {item['price']}</b>", 
+                                  uid, call.message.id, parse_mode='HTML', reply_markup=markup)
 
-    except Exception as e:
-        print(f"Ошибка: {e}")
+    except Exception as e: print(f"Ошибка: {e}")
+
+# --- ФУНКЦИЯ КАЛЬКУЛЯТОРА ЦЕНЫ ---
+def process_custom_amount(message):
+    uid = message.from_user.id
+    try:
+        amount = int(message.text)
+        if amount < 100:
+            bot.send_message(uid, "❌ Минимальный заказ — 100 звёзд.", reply_markup=shop_menu_markup())
+            return
+
+        # Ценовая политика: до 250 - 180 сум/шт, от 250 - 160 сум/шт
+        price_per_one = 160 if amount >= 250 else 180
+        total = amount * price_per_one
+        
+        text = (f"<b>📊 Расчет заказа:</b>\n\nКоличество: <b>{amount} ⭐</b>\n"
+                f"Курс: {price_per_one} UZS/шт\n\n"
+                f"💰 <b>Итого: {total:,} UZS</b>".replace(',', ' '))
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton(f"💳 Оплатить {total:,} UZS".replace(',', ' '), url=f"https://t.me/yngsafar"))
+        markup.add(types.InlineKeyboardButton("⬅️ В магазин", callback_data="open_shop"))
+        bot.send_message(uid, text, parse_mode='HTML', reply_markup=markup)
+    except:
+        bot.send_message(uid, "⚠️ Введите целое число.", reply_markup=shop_menu_markup())
 
 if __name__ == "__main__":
-    print("Бот запущен...")
     bot.infinity_polling()
