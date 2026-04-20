@@ -131,8 +131,13 @@ def query_handler(call):
     elif call.data.startswith("adm_ok_"):
         _, cid, amt, uname = call.data.split("_")
         update_spent(int(cid), uname, int(amt))
-        # Исправлен шрифт (убраны сырые теги из вывода)
-        bot.send_message(cid, "✅ <b>Ваша заявка подтверждена!</b>\n\nЗвезды будут начислены в течение нескольких часов.", parse_mode='HTML')
+        # ВОЗВРАЩЕН ПОЛНЫЙ ТЕКСТ ПОДТВЕРЖДЕНИЯ
+        confirm_text = (
+            "✅ <b>Ваша заявка подтверждена!</b>\n\n"
+            "Звезды будут начислены на ваш баланс в течении нескольких часов. "
+            "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin"
+        )
+        bot.send_message(cid, confirm_text, parse_mode='HTML')
         bot.edit_message_caption(caption="✅ <b>Оплачено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
     elif call.data.startswith("adm_no_"):
         _, cid = call.data.split("_")
