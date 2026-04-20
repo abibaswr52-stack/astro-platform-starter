@@ -123,15 +123,16 @@ def query_handler(call):
         count = int(call.data.replace('p',''))
         pay_screen(uid, mid, count, PRICES[call.data])
     elif call.data.startswith("pay_"):
-        _, c, p = call.data.split("_")
+        parts = call.data.split("_")
+        c, p = parts[1], parts[2]
         msg = bot.edit_message_text("<b>🧾 Отправьте фото чека:</b>", uid, mid, parse_mode='HTML')
         bot.register_next_step_handler(msg, finish_order, c, p)
     
     # ЛОГИКА АДМИНА
     elif call.data.startswith("adm_ok_"):
-        _, cid, amt, uname = call.data.split("_")
+        parts = call.data.split("_")
+        cid, amt, uname = parts[2], parts[3], parts[4]
         update_spent(int(cid), uname, int(amt))
-        # ВОЗВРАЩЕН ПОЛНЫЙ ТЕКСТ ПОДТВЕРЖДЕНИЯ
         confirm_text = (
             "✅ <b>Ваша заявка подтверждена!</b>\n\n"
             "Звезды будут начислены на ваш баланс в течении нескольких часов. "
@@ -140,7 +141,8 @@ def query_handler(call):
         bot.send_message(cid, confirm_text, parse_mode='HTML')
         bot.edit_message_caption(caption="✅ <b>Оплачено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
     elif call.data.startswith("adm_no_"):
-        _, cid = call.data.split("_")
+        parts = call.data.split("_")
+        cid = parts[2] # Исправлено: берем 2-й индекс для ID пользователя
         bot.send_message(cid, "❌ <b>Заявка отклонена.</b>\nЕсли это ошибка, напишите в поддержку.", parse_mode='HTML')
         bot.edit_message_caption(caption="❌ <b>Отклонено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
 
@@ -167,7 +169,6 @@ def finish_order(message, c, p):
     uid, uname = message.from_user.id, (message.from_user.username or message.from_user.first_name)
     bot.send_message(uid, "✅ <b>Чек отправлен!</b> Ожидайте подтверждения.", parse_mode='HTML', reply_markup=main_kb(uid))
     
-    # КРАСИВЫЙ ТЕКСТ ЗАКАЗА ДЛЯ АДМИНА
     admin_caption = (
         f"📩 <b>Новый заказ!</b>\n\n"
         f"👤 <b>Пользователь:</b> @{uname}\n"
