@@ -20,8 +20,8 @@ bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
 # ВСТАВЬ СЮДА СВОЙ ID (цифрами), чтобы пользоваться админкой
-ADMIN_ID = 1001209009 
-ADMIN_USERNAME = "@yngsafar"
+ADMIN_ID = 1411441331 
+ADMIN_USERNAME = "@nebulkin"
 
 STARS_PACKS = {
     "pack_1": {"name": "⭐ 50 Звёзд", "price": "149₽", "desc": "Стартовый набор"},
