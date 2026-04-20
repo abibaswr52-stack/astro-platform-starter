@@ -20,7 +20,7 @@ TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
-ADMIN_ID = 1411441331
+ADMIN_ID = 1001209009 
 CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 
 # --- БД ---
@@ -41,10 +41,9 @@ def update_spent(uid, uname, amount):
     conn.commit()
     conn.close()
 
-# --- КЛАВИАТУРЫ (ДИЗАЙН ВОЗВРАЩЕН ПО СКРИНШОТАМ) ---
+# --- КЛАВИАТУРЫ ---
 def main_kb(uid):
     markup = types.InlineKeyboardMarkup(row_width=2)
-    # Кнопки как на скриншоте 4d3a74.png
     markup.add(
         types.InlineKeyboardButton("🛒 Магазин", callback_data="shop"),
         types.InlineKeyboardButton("👤 Профиль", callback_data="profile")
@@ -57,10 +56,7 @@ def main_kb(uid):
 
 def shop_kb():
     markup = types.InlineKeyboardMarkup(row_width=2)
-    # ОСОБОЕ ПРЕДЛОЖЕНИЕ как на скриншоте 4bfe60.png
     markup.row(types.InlineKeyboardButton("🎁 ОСОБОЕ ПРЕДЛОЖЕНИЕ (1000 шт)", callback_data="p1000"))
-    
-    # Кнопки в 2 ряда как на скриншоте 4af41b.png
     markup.add(
         types.InlineKeyboardButton("⭐ 100 — 18 000 UZS", callback_data="p100"),
         types.InlineKeyboardButton("⭐ 150 — 27 000 UZS", callback_data="p150"),
@@ -86,7 +82,6 @@ PRICES = {
 @bot.message_handler(commands=['start'])
 def welcome(message):
     bot.clear_step_handler_by_chat_id(message.chat.id)
-    # Красивое длинное приветствие с названием магазина
     welcome_text = (
         f"🌟 Добро пожаловать в <b>RandomStarsUzb</b>, <b>{message.from_user.first_name}</b>!\n\n"
         "Мы предоставляем самые выгодные цены на Telegram Stars в Узбекистане. 🇺🇿\n"
@@ -131,16 +126,17 @@ def query_handler(call):
         _, c, p = call.data.split("_")
         msg = bot.edit_message_text("<b>🧾 Отправьте фото чека:</b>", uid, mid, parse_mode='HTML')
         bot.register_next_step_handler(msg, finish_order, c, p)
+    
+    # ЛОГИКА АДМИНА
     elif call.data.startswith("adm_ok_"):
         _, cid, amt, uname = call.data.split("_")
         update_spent(int(cid), uname, int(amt))
-        confirm_text = ("✅ <b>Ваша заявка подтверждена!</b>\n\nЗвезды будут начислены на ваш баланс в течении нескольких часов. "
-                        "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin")
-        bot.send_message(cid, confirm_text, parse_mode='HTML')
+        # Исправлен шрифт (убраны сырые теги из вывода)
+        bot.send_message(cid, "✅ <b>Ваша заявка подтверждена!</b>\n\nЗвезды будут начислены в течение нескольких часов.", parse_mode='HTML')
         bot.edit_message_caption(caption="✅ <b>Оплачено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
     elif call.data.startswith("adm_no_"):
         _, cid = call.data.split("_")
-        bot.send_message(cid, "❌ <b>Заявка отклонена.</b>\nЕсли это ошибка, напишите в поддержку.")
+        bot.send_message(cid, "❌ <b>Заявка отклонена.</b>\nЕсли это ошибка, напишите в поддержку.", parse_mode='HTML')
         bot.edit_message_caption(caption="❌ <b>Отклонено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
 
 def custom_logic(message):
@@ -164,11 +160,21 @@ def finish_order(message, c, p):
         bot.register_next_step_handler(msg, finish_order, c, p)
         return
     uid, uname = message.from_user.id, (message.from_user.username or message.from_user.first_name)
-    bot.send_message(uid, "✅ <b>Чек отправлен!</b> Ожидайте подтверждения.", reply_markup=main_kb(uid))
+    bot.send_message(uid, "✅ <b>Чек отправлен!</b> Ожидайте подтверждения.", parse_mode='HTML', reply_markup=main_kb(uid))
+    
+    # КРАСИВЫЙ ТЕКСТ ЗАКАЗА ДЛЯ АДМИНА
+    admin_caption = (
+        f"📩 <b>Новый заказ!</b>\n\n"
+        f"👤 <b>Пользователь:</b> @{uname}\n"
+        f"🆔 <b>ID:</b> <code>{uid}</code>\n"
+        f"💰 <b>Сумма:</b> <code>{int(p):,} UZS</code>\n"
+        f"⭐ <b>Количество:</b> <code>{c} шт.</code>"
+    ).replace(',',' ')
+    
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok_{uid}_{p}_{uname}"))
     kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no_{uid}"))
-    bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 Чек: {int(p):,} UZS\n👤 @{uname}".replace(',',' '), reply_markup=kb)
+    bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=admin_caption, parse_mode='HTML', reply_markup=kb)
 
 if __name__ == "__main__":
     bot.infinity_polling()
