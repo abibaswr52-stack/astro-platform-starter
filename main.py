@@ -20,7 +20,7 @@ bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
 # НАСТРОЙКИ
-ADMIN_ID = 123456789  # ВСТАВЬ СВОЙ ID
+ADMIN_ID = 1001209009
 CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 
 # ЦЕНЫ
