@@ -154,6 +154,32 @@ def query_handler(call):
         msg = bot.edit_message_text("Введите количество (мин 100):", uid, mid)
         bot.register_next_step_handler(msg, custom_logic)
 
+    # --- АДМИН ---
+    elif call.data.startswith("adm_ok|"):
+        parts = call.data.split("|")
+        cid, amt, uname = parts[1], parts[2], parts[3]
+
+        update_spent(int(cid), uname, int(amt))
+
+        bot.send_message(cid,
+            "✅ <b>Ваша заявка подтверждена!</b>\n\n"
+            "Звезды будут начислены на ваш баланс в течении нескольких часов.\n\n"
+            "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin",
+            parse_mode='HTML'
+        )
+
+        bot.edit_message_caption("✅ Оплачено", call.message.chat.id, call.message.id)
+
+    elif call.data.startswith("adm_no|"):
+        cid = call.data.split("|")[1]
+
+        bot.send_message(cid,
+            "❌ Заявка отклонена. Напишите в поддержку.",
+            parse_mode='HTML'
+        )
+
+        bot.edit_message_caption("❌ Отклонено", call.message.chat.id, call.message.id)
+
 # --- USERNAME ---
 def get_username(message):
     uid = message.from_user.id
@@ -185,16 +211,16 @@ def finish_order_with_target(message):
     target = order.get("target", "не указан")
 
     bot.send_message(uid,
-    "✅ <b>Ваша заявка подтверждена!</b>\n\n"
-    "Звезды будут начислены на ваш баланс в течении нескольких часов.\n\n"
-    "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin",
-    parse_mode='HTML',
-    reply_markup=main_kb(uid)
-)
+        "✅ <b>Ваша заявка подтверждена!</b>\n\n"
+        "Звезды будут начислены на ваш баланс в течении нескольких часов.\n\n"
+        "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin",
+        parse_mode='HTML',
+        reply_markup=main_kb(uid)
+    )
 
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok_{uid}_{p}_{uname}"))
-    kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no_{uid}"))
+    kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{p}|{uname}"))
+    kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no|{uid}"))
 
     bot.send_photo(
         ADMIN_ID,
