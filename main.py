@@ -291,7 +291,8 @@ def query_handler(call):
         if balance >= MIN_WITHDRAW_UZS:
             kb.add(types.InlineKeyboardButton("💸 Вывести бонусы", callback_data="ref_withdraw"))
         else:
-            kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
+            kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))
+        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
 
         bot.edit_message_text(
             text,
