@@ -47,14 +47,21 @@ user_orders = {}
 # --- КЛАВИАТУРЫ ---
 def main_kb(uid):
     markup = types.InlineKeyboardMarkup(row_width=2)
+    
     markup.add(
         types.InlineKeyboardButton("🛒 Магазин", callback_data="shop"),
         types.InlineKeyboardButton("👤 Профиль", callback_data="profile")
     )
+
     markup.add(
         types.InlineKeyboardButton("🏆 Топ", callback_data="top"),
+        types.InlineKeyboardButton("👥 Рефералка", callback_data="ref")  # 👈 ВОТ ЭТО ДОБАВИЛ
+    )
+
+    markup.add(
         types.InlineKeyboardButton("❓ Поддержка", url="https://t.me/yngsafar")
     )
+
     return markup
 
 def shop_kb():
