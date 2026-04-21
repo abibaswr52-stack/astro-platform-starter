@@ -184,7 +184,13 @@ def finish_order_with_target(message):
     p = order.get("price")
     target = order.get("target", "не указан")
 
-    bot.send_message(uid, "✅ Чек принят, ожидайте подтверждения", reply_markup=main_kb(uid))
+    bot.send_message(uid,
+    "✅ <b>Ваша заявка подтверждена!</b>\n\n"
+    "Звезды будут начислены на ваш баланс в течении нескольких часов.\n\n"
+    "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin",
+    parse_mode='HTML',
+    reply_markup=main_kb(uid)
+)
 
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok_{uid}_{p}_{uname}"))
@@ -218,7 +224,8 @@ def custom_logic(message):
 def pay_screen(uid, mid, c, p):
     text = f"💳 К оплате: {p} UZS\n⭐ {c}\n\n{CARD_DETAILS}"
     kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}")
+        kb.add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
+        kb.add(types.InlineKeyboardButton("❌ Отмена", callback_data="shop"))
     )
 
     if mid:
