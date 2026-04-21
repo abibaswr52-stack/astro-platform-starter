@@ -74,17 +74,32 @@ def update_spent(uid, uname, amount):
     cur.execute("INSERT OR IGNORE INTO users (id, username, spent) VALUES (?, ?, 0)", (uid, uname))
     cur.execute("UPDATE users SET spent = spent + ?, username = ? WHERE id = ?", (amount, uname, uid))
 
+    # Коммитим сначала — чтобы запись точно была в БД перед чтением
+    conn.commit()
+
+    # Теперь читаем referrer_id
     cur.execute("SELECT referrer_id FROM users WHERE id=?", (uid,))
     ref = cur.fetchone()
 
     if ref and ref[0]:
         bonus = int(amount * 0.02)
-        # ++ ref_earned (накопленный итог) и ref_balance (доступно для вывода)
-        cur.execute("UPDATE users SET ref_earned = ref_earned + ?, ref_balance = ref_balance + ? WHERE id=?",
-                    (bonus, bonus, ref[0]))
+        cur.execute(
+            "UPDATE users SET ref_earned = ref_earned + ?, ref_balance = ref_balance + ? WHERE id=?",
+            (bonus, bonus, ref[0])
+        )
+        # Уведомляем реферера о бонусе
+        try:
+            bot.send_message(
+                ref[0],
+                f"🎉 <b>Реферальный бонус начислен!</b>\n\n"
+                f"Ваш реферал совершил покупку на <b>{amount} UZS</b>\n"
+                f"💸 Ваш бонус (2%): <b>{bonus} UZS</b>",
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
     ADMIN_BALANCE += amount
-
     conn.commit()
     conn.close()
 
