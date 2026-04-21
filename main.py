@@ -411,7 +411,12 @@ def query_handler(call):
 
         update_spent(target_uid, uname, p)
         bot.answer_callback_query(call.id, "✅ Заказ подтверждён")
-        bot.send_message(target_uid, "⭐ Ваш заказ подтверждён и выполнен! Спасибо за покупку!")
+        bot.send_message(target_uid,
+            "✅ <b>Ваш заказ выполнен!</b>\n\n"
+            "Звёзды успешно отправлены на указанный аккаунт.\n\n"
+            "Благодарим за покупку в <b>RandomStarsUzb</b>! 🌟",
+            parse_mode='HTML'
+        )
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
     elif call.data.startswith("adm_no|"):
@@ -509,9 +514,10 @@ def finish_order_with_target(message):
     target = order.get("target", "не указан")
 
     bot.send_message(uid,
-        "✅ <b>Ваша заявка подтверждена!</b>\n\n"
-        "Звезды будут начислены на ваш баланс в течении нескольких часов.\n\n"
-        "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin",
+        "📋 <b>Ваша заявка принята на рассмотрение.</b>\n\n"
+        "Мы проверим поступление оплаты и в течение нескольких часов отправим вам звёзды.\n\n"
+        "📌 Пожалуйста, не беспокойтесь — каждая заявка обрабатывается вручную.\n\n"
+        "Если возникли вопросы: @RandomGamesUzbAdmin",
         parse_mode='HTML',
         reply_markup=main_kb(uid)
     )
