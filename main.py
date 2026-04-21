@@ -134,6 +134,44 @@ def query_handler(call):
                 types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
         )
 
+    # ⭐ ВСТАВЛЕНА РЕФЕРАЛКА (ЕЁ У ТЕБЯ НЕ БЫЛО)
+    elif call.data == "ref":
+        username = bot.get_me().username
+        link = f"https://t.me/{username}?start=ref_{uid}"
+
+        conn = sqlite3.connect('users.db')
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id=?", (uid,))
+        invited = cur.fetchone()[0]
+
+        cur.execute("SELECT SUM(spent) FROM users WHERE referrer_id=?", (uid,))
+        total = cur.fetchone()[0] or 0
+
+        cur.execute("SELECT ref_earned FROM users WHERE id=?", (uid,))
+        earned = cur.fetchone()
+        earned = earned[0] if earned else 0
+
+        conn.close()
+
+        text = (
+            "👥 <b>Реферальная система</b>\n\n"
+            f"🔗 Ваша ссылка:\n{link}\n\n"
+            f"👤 Приглашено: {invited}\n"
+            f"💰 Оборот: {total} UZS\n"
+            f"💸 Доход (2%): {earned} UZS\n\n"
+            "📤 Вывод от 75⭐"
+        )
+
+        bot.edit_message_text(
+            text,
+            uid,
+            mid,
+            parse_mode="HTML",
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
+        )
+
     elif call.data in PRICES:
         count = int(call.data.replace('p',''))
         pay_screen(uid, mid, count, PRICES[call.data])
@@ -154,32 +192,6 @@ def query_handler(call):
         msg = bot.edit_message_text("Введите количество (мин 100):", uid, mid)
         bot.register_next_step_handler(msg, custom_logic)
 
-    # --- АДМИН ---
-    elif call.data.startswith("adm_ok|"):
-        parts = call.data.split("|")
-        cid, amt, uname = parts[1], parts[2], parts[3]
-
-        update_spent(int(cid), uname, int(amt))
-
-        bot.send_message(cid,
-            "✅ <b>Ваша заявка подтверждена!</b>\n\n"
-            "Звезды будут начислены на ваш баланс в течении нескольких часов.\n\n"
-            "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin",
-            parse_mode='HTML'
-        )
-
-        bot.edit_message_caption("✅ Оплачено", call.message.chat.id, call.message.id)
-
-    elif call.data.startswith("adm_no|"):
-        cid = call.data.split("|")[1]
-
-        bot.send_message(cid,
-            "❌ Заявка отклонена. Напишите в поддержку.",
-            parse_mode='HTML'
-        )
-
-        bot.edit_message_caption("❌ Отклонено", call.message.chat.id, call.message.id)
-
 # --- USERNAME ---
 def get_username(message):
     uid = message.from_user.id
@@ -191,7 +203,6 @@ def get_username(message):
         return
 
     user_orders[uid]["target"] = username
-
     msg = bot.send_message(uid, "📸 Отправьте чек:")
     bot.register_next_step_handler(msg, finish_order_with_target)
 
