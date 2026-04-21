@@ -82,18 +82,19 @@ def update_spent(uid, uname, amount):
     ref = cur.fetchone()
 
     if ref and ref[0]:
-        bonus = int(amount * 0.02)
+        bonus = int(amount * 0.05)
         cur.execute(
             "UPDATE users SET ref_earned = ref_earned + ?, ref_balance = ref_balance + ? WHERE id=?",
             (bonus, bonus, ref[0])
         )
+        conn.commit()
         # Уведомляем реферера о бонусе
         try:
             bot.send_message(
                 ref[0],
                 f"🎉 <b>Реферальный бонус начислен!</b>\n\n"
                 f"Ваш реферал совершил покупку на <b>{amount} UZS</b>\n"
-                f"💸 Ваш бонус (2%): <b>{bonus} UZS</b>",
+                f"💸 Ваш бонус (5%): <b>{bonus} UZS</b>",
                 parse_mode='HTML'
             )
         except:
@@ -103,7 +104,9 @@ def update_spent(uid, uname, amount):
     conn.commit()
     conn.close()
 
-# --- КЛАВИАТУРЫ (НЕ ТРОГАЮ ТВОЮ ЛОГИКУ) ---
+# --- БАЛАНС БОТА (обновляется вручную админом) ---
+BOT_STARS_BALANCE = 0
+
 def main_kb(uid):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -115,7 +118,7 @@ def main_kb(uid):
         types.InlineKeyboardButton("👥 Рефералка", callback_data="ref")
     )
     markup.add(
-        types.InlineKeyboardButton("❓ Поддержка", url="https://t.me/yngsafar")
+        types.InlineKeyboardButton("❓ Частые вопросы и поддержка", callback_data="faq")
     )
     return markup
 
@@ -123,16 +126,16 @@ def shop_kb():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.row(types.InlineKeyboardButton("🎁 ОСОБОЕ ПРЕДЛОЖЕНИЕ (1000 шт)", callback_data="p1000"))
     markup.add(
-        types.InlineKeyboardButton("⭐ 100 — 18 000 UZS", callback_data="p100"),
-        types.InlineKeyboardButton("⭐ 150 — 27 000 UZS", callback_data="p150"),
-        types.InlineKeyboardButton("⭐ 200 — 36 000 UZS", callback_data="p200"),
-        types.InlineKeyboardButton("✅ ⭐ 250 — 40 000 UZS", callback_data="p250"),
-        types.InlineKeyboardButton("🔥 ⭐ 300 — 48 000 UZS", callback_data="p300"),
-        types.InlineKeyboardButton("⭐ 350 — 56 000 UZS", callback_data="p350"),
-        types.InlineKeyboardButton("⭐ 400 — 64 000 UZS", callback_data="p400"),
-        types.InlineKeyboardButton("⭐ 450 — 72 000 UZS", callback_data="p450")
+        types.InlineKeyboardButton("⭐ 100 (18 000 сум)", callback_data="p100"),
+        types.InlineKeyboardButton("⭐ 150 (27 000 сум)", callback_data="p150"),
+        types.InlineKeyboardButton("⭐ 200 (36 000 сум)", callback_data="p200"),
+        types.InlineKeyboardButton("✅ ⭐ 250 (40 000 сум)", callback_data="p250"),
+        types.InlineKeyboardButton("🔥 ⭐ 300 (48 000 сум)", callback_data="p300"),
+        types.InlineKeyboardButton("⭐ 350 (56 000 сум)", callback_data="p350"),
+        types.InlineKeyboardButton("⭐ 400 (64 000 сум)", callback_data="p400"),
+        types.InlineKeyboardButton("⭐ 450 (72 000 сум)", callback_data="p450")
     )
-    markup.row(types.InlineKeyboardButton("💎 ⭐ 500 — 80 000 UZS", callback_data="p500"))
+    markup.row(types.InlineKeyboardButton("💎 ⭐ 500 (80 000 сум)", callback_data="p500"))
     markup.row(types.InlineKeyboardButton("✨ ВВЕСТИ СВОЮ СУММУ", callback_data="custom"))
     markup.row(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
     return markup
@@ -176,9 +179,11 @@ def welcome(message):
             pass
 
     text = (
-        f"🌟 Добро пожаловать в <b>RandomStarsUzb</b>, <b>{message.from_user.first_name}</b>!\n\n"
+        f"🌟 Добро пожаловать в <b>Random Stars</b>, <b>{message.from_user.first_name}</b>!\n\n"
         "💎 Быстрая покупка Telegram Stars\n"
         "⚡ Безопасно и надежно\n\n"
+        f"⭐ Баланс бота: <b>{BOT_STARS_BALANCE}</b> звёзд\n"
+        f"<i>(количество звёзд, доступных к покупке. Обновляется ежедневно.)</i>\n\n"
         "👇 Выберите действие:"
     )
 
@@ -191,10 +196,23 @@ def query_handler(call):
     bot.clear_step_handler_by_chat_id(uid)
 
     if call.data == "home":
-        bot.edit_message_text("🏠 Главное меню:", uid, mid, reply_markup=main_kb(uid))
+        text = (
+            f"🏠 <b>Главное меню</b>\n\n"
+            f"⭐ Баланс бота: <b>{BOT_STARS_BALANCE}</b> звёзд\n"
+            f"<i>(настраиваемый мною) — количество звёзд, доступных к покупке. Обновляется ежедневно.</i>"
+        )
+        bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=main_kb(uid))
 
     elif call.data == "shop":
-        bot.edit_message_text("🛒 <b>Выберите пакет:</b>", uid, mid, parse_mode='HTML', reply_markup=shop_kb())
+        shop_text = (
+            "🛒 <b>Выберите пакет:</b>\n\n"
+            "💬 <i>100⭐ — 18 000 сум. Но чем больше покупаете, тем больше выгода! "
+            "Например, за пакет в 500 звёзд вы покупаете намного дешевле (90 тыс → 80 тыс).</i>"
+        )
+        # Проверяем баланс бота
+        if BOT_STARS_BALANCE <= 0:
+            shop_text += "\n\n⚠️ <b>На данный момент звёзд мало. Пожалуйста, покупайте меньшее количество.</b>"
+        bot.edit_message_text(shop_text, uid, mid, parse_mode='HTML', reply_markup=shop_kb())
 
     elif call.data == "profile":
         conn = sqlite3.connect('users.db')
@@ -263,7 +281,7 @@ def query_handler(call):
             f"🔗 Ваша ссылка:\n{link}\n\n"
             f"👤 Приглашено: {invited}\n"
             f"💰 Оборот рефералов: {total} UZS\n"
-            f"📊 Всего заработано (2%): {earned} UZS\n"
+            f"📊 Всего заработано (5%): {earned} UZS\n"
             f"💳 Доступно к выводу: {balance} UZS\n\n"
             f"📤 Минимальный вывод: ~{MIN_WITHDRAW_UZS} UZS"
         )
@@ -273,8 +291,7 @@ def query_handler(call):
         if balance >= MIN_WITHDRAW_UZS:
             kb.add(types.InlineKeyboardButton("💸 Вывести бонусы", callback_data="ref_withdraw"))
         else:
-            kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))        
-            kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
+            kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
 
         bot.edit_message_text(
             text,
@@ -384,7 +401,21 @@ def query_handler(call):
         )
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
-    elif call.data == "admin_balance":
+    elif call.data == "faq":
+        faq_text = (
+            "❓ <b>Частые вопросы и поддержка</b>\n\n"
+            "1. <b>Почему звёзды стоят дешево?</b>\n"
+            "Звёзды пополняются с баланса бота в тг Random Games, с которого администратор поднял звёзды с помощью специального метода и большого количества приглашений реферальными ссылками.\n\n"
+            "2. <b>Будет ли работать бот всегда?</b>\n"
+            "Бот будет работать до тех пор, пока на балансе будут звёзды. А когда их не останется — бот предупредит всех и возможно закроется, если это станет необходимо.\n\n"
+            "3. <b>Куда мне обратиться, если звёзды не пришли на аккаунт?</b>\n"
+            "Если звёзды не пришли на аккаунт, заявку отклонили по ошибке или есть какие-то вопросы — пишите @RandomGamesUzbAdmin\n\n"
+            "💬 <b>Прямая поддержка:</b> @RandomGamesUzbAdmin"
+        )
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("💬 Написать в поддержку", url="https://t.me/RandomGamesUzbAdmin"))
+        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
+        bot.edit_message_text(faq_text, uid, mid, parse_mode='HTML', reply_markup=kb)
         bot.answer_callback_query(call.id, f"Баланс админа: {ADMIN_BALANCE}")
 
     elif call.data == "delete":
@@ -436,7 +467,7 @@ def query_handler(call):
         bot.send_message(target_uid,
             "✅ <b>Ваш заказ выполнен!</b>\n\n"
             "Звёзды успешно отправлены на указанный аккаунт.\n\n"
-            "Благодарим за покупку в <b>RandomStarsUzb</b>! 🌟",
+            "Благодарим за покупку в <b>Random Stars</b>! 🌟",
             parse_mode='HTML'
         )
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
@@ -582,6 +613,20 @@ def finish_order_with_target(message):
         caption=f"👤 @{uname}\n🎯 {target}\n⭐ {c}\n💰 {p} UZS",
         reply_markup=kb
     )
+
+# --- АДМИН: установить баланс бота ---
+# Использование: /setbalance 5000
+@bot.message_handler(commands=['setbalance'])
+def setbalance(message):
+    global BOT_STARS_BALANCE
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        amount = int(message.text.split()[1])
+        BOT_STARS_BALANCE = amount
+        bot.send_message(message.chat.id, f"✅ Баланс бота обновлён: <b>{BOT_STARS_BALANCE} ⭐</b>", parse_mode='HTML')
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /setbalance 5000")
 
 # --- АДМИН: ручная привязка реферера ---
 # Использование: /setref USER_ID REFERRER_ID
