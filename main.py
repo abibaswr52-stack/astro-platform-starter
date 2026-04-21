@@ -369,6 +369,18 @@ def query_handler(call):
         user_orders.pop(uid, None)
         bot.answer_callback_query(call.id, "🗑 Удалено")
 
+    elif call.data == "custom":
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
+        msg = bot.edit_message_text(
+            "✨ <b>Введите количество звёзд</b>\n\n"
+            "Минимум: <b>100</b> ⭐\n"
+            "Цена: <b>180 UZS</b> за звезду\n\n"
+            "Пример: <i>750</i>",
+            uid, mid, parse_mode='HTML', reply_markup=kb
+        )
+        bot.register_next_step_handler_by_chat_id(uid, handle_custom_amount)
+
     elif call.data in PRICES:
         c = int(call.data.replace("p",""))
         pay_screen(uid, mid, c, PRICES[call.data])
@@ -436,6 +448,37 @@ def get_target_username(message):
         reply_markup=kb
     )
     bot.register_next_step_handler(msg, finish_order_with_target)
+
+# --- СВОЯ СУММА ---
+def handle_custom_amount(message):
+    uid = message.from_user.id
+
+    try:
+        c = int(message.text.strip())
+    except ValueError:
+        msg = bot.send_message(uid,
+            "❌ Введите только <b>число</b>. Попробуйте ещё раз:",
+            parse_mode='HTML',
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад в магазин", callback_data="shop")
+            )
+        )
+        bot.register_next_step_handler(msg, handle_custom_amount)
+        return
+
+    if c < 100:
+        msg = bot.send_message(uid,
+            "❌ Минимальное количество — <b>100 звёзд</b>. Введите ещё раз:",
+            parse_mode='HTML',
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад в магазин", callback_data="shop")
+            )
+        )
+        bot.register_next_step_handler(msg, handle_custom_amount)
+        return
+
+    p = c * 180  # 180 UZS за звезду
+    pay_screen(uid, None, c, p)
 
 # --- PAY ---
 def pay_screen(uid, mid, c, p):
