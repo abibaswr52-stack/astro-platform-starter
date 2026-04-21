@@ -4,6 +4,7 @@ import sqlite3
 from telebot import types
 from flask import Flask
 from threading import Thread
+import time
 
 # --- СЕРВЕР ---
 app = Flask('')
@@ -40,6 +41,10 @@ def update_spent(uid, uname, amount):
     cursor.execute("UPDATE users SET spent = spent + ?, username = ? WHERE id = ?", (amount, uname, uid))
     conn.commit()
     conn.close()
+
+# --- ДОП ДАННЫЕ ---
+last_orders = {}
+user_orders = {}
 
 # --- КЛАВИАТУРЫ ---
 def main_kb(uid):
@@ -84,9 +89,10 @@ def welcome(message):
     bot.clear_step_handler_by_chat_id(message.chat.id)
     welcome_text = (
         f"🌟 Добро пожаловать в <b>RandomStarsUzb</b>, <b>{message.from_user.first_name}</b>!\n\n"
-        "Мы предоставляем самые выгодные цены на Telegram Stars в Узбекистане. 🇺🇿\n"
-        "Быстро, надежно и с гарантией.\n\n"
-        "Выбирай нужный раздел ниже и приступай к покупкам! 👇"
+        "💎 Мгновенная покупка Telegram Stars\n"
+        "⚡ Быстрое зачисление\n"
+        "🔒 Гарантия безопасности\n\n"
+        "👇 Выберите действие:"
     )
     bot.send_message(message.chat.id, welcome_text, parse_mode='HTML', reply_markup=main_kb(message.from_user.id))
 
@@ -96,91 +102,121 @@ def query_handler(call):
     bot.clear_step_handler_by_chat_id(uid)
 
     if call.data == "home":
-        welcome_text = (
-            f"🌟 Добро пожаловать в <b>RandomStarsUzb</b>, <b>{call.from_user.first_name}</b>!\n\n"
-            "Выберите раздел:"
-        )
+        welcome_text = f"🌟 Добро пожаловать, <b>{call.from_user.first_name}</b>!\n\nВыберите раздел:"
         bot.edit_message_text(welcome_text, uid, mid, parse_mode='HTML', reply_markup=main_kb(uid))
+
     elif call.data == "shop":
-        bot.edit_message_text("<b>Выберите количество звёзд:</b>", uid, mid, parse_mode='HTML', reply_markup=shop_kb())
-    elif call.data == "profile":
-        conn = sqlite3.connect('users.db'); cur = conn.cursor()
-        cur.execute("SELECT spent FROM users WHERE id=?", (uid,)); res = cur.fetchone(); conn.close()
-        spent = res[0] if res else 0
-        bot.edit_message_text(f"<b>👤 Мой профиль</b>\n🆔 ID: <code>{uid}</code>\n💰 Потрачено: <b>{spent:,} UZS</b>".replace(',',' '), 
-                              uid, mid, parse_mode='HTML', reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home")))
-    elif call.data == "top":
-        conn = sqlite3.connect('users.db'); cur = conn.cursor()
-        cur.execute("SELECT username, spent FROM users WHERE spent > 0 ORDER BY spent DESC LIMIT 10"); res = cur.fetchall(); conn.close()
-        text = "<b>🏆 Топ донатеров:</b>\n\n"
-        for i, r in enumerate(res, 1): text += f"{i}. {r[0]} — {r[1]:,} UZS\n".replace(',',' ')
-        bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home")))
-    elif call.data == "custom":
-        msg = bot.edit_message_text("<b>Введите количество звёзд (число):</b>", uid, mid, parse_mode='HTML', 
-                                    reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ Отмена", callback_data="shop")))
-        bot.register_next_step_handler(msg, custom_logic)
-    elif call.data in PRICES:
-        count = int(call.data.replace('p',''))
-        pay_screen(uid, mid, count, PRICES[call.data])
+        bot.edit_message_text(
+            "🛒 <b>Выберите пакет звёзд:</b>\n\n💡 Чем больше — тем выгоднее цена за 1 ⭐",
+            uid, mid, parse_mode='HTML', reply_markup=shop_kb()
+        )
+
     elif call.data.startswith("pay_"):
         parts = call.data.split("_")
         c, p = parts[1], parts[2]
-        msg = bot.edit_message_text("<b>🧾 Отправьте фото чека:</b>", uid, mid, parse_mode='HTML')
-        bot.register_next_step_handler(msg, finish_order, c, p)
-    
-    # ЛОГИКА АДМИНА
-    elif call.data.startswith("adm_ok_"):
-        parts = call.data.split("_")
-        cid, amt, uname = parts[2], parts[3], parts[4]
-        update_spent(int(cid), uname, int(amt))
-        confirm_text = (
-            "✅ <b>Ваша заявка подтверждена!</b>\n\n"
-            "Звезды будут начислены на ваш баланс в течении нескольких часов. "
-            "Не пришли звезды? Обращайся в поддержку @RandomGamesUzbAdmin"
-        )
-        bot.send_message(cid, confirm_text, parse_mode='HTML')
-        bot.edit_message_caption(caption="✅ <b>Оплачено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
-    elif call.data.startswith("adm_no_"):
-        parts = call.data.split("_")
-        cid = parts[2] # Исправлено: берем 2-й индекс для ID пользователя
-        bot.send_message(cid, "❌ <b>Заявка отклонена.</b>\nЕсли это ошибка, напишите в поддержку.", parse_mode='HTML')
-        bot.edit_message_caption(caption="❌ <b>Отклонено</b>", chat_id=call.message.chat.id, message_id=mid, parse_mode='HTML')
 
+        user_orders[uid] = {"count": c, "price": p}
+
+        msg = bot.edit_message_text(
+            "<b>👤 Введите username получателя:</b>\n\nПример: @username",
+            uid, mid, parse_mode='HTML'
+        )
+        bot.register_next_step_handler(msg, get_username)
+
+    elif call.data == "custom":
+        msg = bot.edit_message_text("<b>Введите количество звёзд (минимум 100):</b>", uid, mid, parse_mode='HTML')
+        bot.register_next_step_handler(msg, custom_logic)
+
+# --- ВВОД USERNAME ---
+def get_username(message):
+    uid = message.from_user.id
+    username = message.text.strip()
+
+    if not username.startswith("@"):
+        msg = bot.send_message(uid, "❌ Введите корректный username (начинается с @)")
+        bot.register_next_step_handler(msg, get_username)
+        return
+
+    user_orders[uid]["target"] = username
+
+    msg = bot.send_message(uid, "<b>🧾 Отправьте фото чека:</b>", parse_mode='HTML')
+    bot.register_next_step_handler(msg, finish_order_with_target)
+
+# --- ФИНАЛ С ЗАКАЗОМ ---
+def finish_order_with_target(message):
+    if message.content_type != 'photo':
+        msg = bot.send_message(message.chat.id, "❌ Отправьте фото чека!")
+        bot.register_next_step_handler(msg, finish_order_with_target)
+        return
+
+    uid = message.from_user.id
+    uname = message.from_user.username or message.from_user.first_name
+
+    # антиспам
+    now = time.time()
+    if uid in last_orders and now - last_orders[uid] < 30:
+        bot.send_message(uid, "⏳ Подожди немного перед новой заявкой.")
+        return
+    last_orders[uid] = now
+
+    order = user_orders.get(uid, {})
+    c = order.get("count")
+    p = order.get("price")
+    target = order.get("target", "не указан")
+
+    bot.send_message(uid,
+        "✅ <b>Чек получен!</b>\n\n⏳ Проверяем оплату (5–15 минут)",
+        parse_mode='HTML',
+        reply_markup=main_kb(uid)
+    )
+
+    admin_caption = (
+        f"📩 <b>Новый заказ!</b>\n\n"
+        f"👤 <b>От:</b> @{uname}\n"
+        f"🎯 <b>Кому:</b> {target}\n"
+        f"🆔 <b>ID:</b> <code>{uid}</code>\n"
+        f"💰 <b>Сумма:</b> <code>{int(p):,} UZS</code>\n"
+        f"⭐ <b>Количество:</b> <code>{c} шт.</code>"
+    ).replace(',', ' ')
+
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok_{uid}_{p}_{uname}"))
+    kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no_{uid}"))
+
+    bot.send_photo(ADMIN_ID, message.photo[-1].file_id,
+                   caption=admin_caption,
+                   parse_mode='HTML',
+                   reply_markup=kb)
+
+# --- CUSTOM ---
 def custom_logic(message):
     try:
         count = int(message.text)
-        price = count * (160 if count >= 250 else 180)
+
+        if count < 100:
+            bot.send_message(message.chat.id, "❌ Минимальный заказ — 100 ⭐")
+            return
+
+        if count >= 500:
+            price = count * 145
+        elif count >= 250:
+            price = count * 160
+        else:
+            price = count * 180
+
         pay_screen(message.chat.id, None, count, price)
     except:
         bot.send_message(message.chat.id, "⚠️ Введите число.", reply_markup=shop_kb())
 
+# --- PAY ---
 def pay_screen(uid, mid, c, p):
-    text = f"<b>💳 К оплате: {int(p):,} UZS</b>\nТовар: {c} ⭐\n\nРеквизиты:\n<code>{CARD_DETAILS}</code>".replace(',',' ')
+    text = f"<b>💳 К оплате: {int(p):,} UZS</b>\n⭐ {c} шт.\n\n<code>{CARD_DETAILS}</code>".replace(',',' ')
     kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
-    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
-    if mid: bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=kb)
-    else: bot.send_message(uid, text, parse_mode='HTML', reply_markup=kb)
+    if mid:
+        bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=kb)
+    else:
+        bot.send_message(uid, text, parse_mode='HTML', reply_markup=kb)
 
-def finish_order(message, c, p):
-    if message.content_type != 'photo':
-        msg = bot.send_message(message.chat.id, "❌ Отправьте фото чека!")
-        bot.register_next_step_handler(msg, finish_order, c, p)
-        return
-    uid, uname = message.from_user.id, (message.from_user.username or message.from_user.first_name)
-    bot.send_message(uid, "✅ <b>Чек отправлен!</b> Ожидайте подтверждения.", parse_mode='HTML', reply_markup=main_kb(uid))
-    
-    admin_caption = (
-        f"📩 <b>Новый заказ!</b>\n\n"
-        f"👤 <b>Пользователь:</b> @{uname}\n"
-        f"🆔 <b>ID:</b> <code>{uid}</code>\n"
-        f"💰 <b>Сумма:</b> <code>{int(p):,} UZS</code>\n"
-        f"⭐ <b>Количество:</b> <code>{c} шт.</code>"
-    ).replace(',',' ')
-    
-    kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok_{uid}_{p}_{uname}"))
-    kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no_{uid}"))
-    bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=admin_caption, parse_mode='HTML', reply_markup=kb)
-
+# --- СТАРТ ---
 if __name__ == "__main__":
     bot.infinity_polling()
