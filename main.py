@@ -226,7 +226,6 @@ def pay_screen(uid, mid, c, p):
     kb = types.InlineKeyboardMarkup().add(
         kb.add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
         kb.add(types.InlineKeyboardButton("❌ Отмена", callback_data="shop"))
-    )
 
     if mid:
         bot.edit_message_text(text, uid, mid, reply_markup=kb)
