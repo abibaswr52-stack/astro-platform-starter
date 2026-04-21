@@ -156,17 +156,21 @@ def welcome(message):
             conn = sqlite3.connect('users.db')
             cur = conn.cursor()
 
+            # Сначала создаём юзера если нет
             cur.execute("INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)",
                         (message.from_user.id, message.from_user.username or ""))
+            conn.commit()
 
+            # Читаем текущий referrer_id
             cur.execute("SELECT referrer_id FROM users WHERE id=?", (message.from_user.id,))
             res = cur.fetchone()
 
-            if res and res[0] is None:
+            # Записываем реферера только если его ещё нет И это не сам реферер
+            if res is not None and res[0] is None and ref_id != message.from_user.id:
                 cur.execute("UPDATE users SET referrer_id=? WHERE id=?",
                             (ref_id, message.from_user.id))
+                conn.commit()
 
-            conn.commit()
             conn.close()
         except:
             pass
@@ -252,10 +256,7 @@ def query_handler(call):
 
         conn.close()
 
-        # Подсчёт: сколько звёзд можно вывести (75⭐ минимум, 1 звезда ≈ 160 UZS примерно)
-        # Используем условие из оригинала: вывод от 75⭐
-        # Считаем 75 звёзд = 75 * 160 = 12000 UZS (можешь поменять курс)
-        MIN_WITHDRAW_UZS = 12000
+        MIN_WITHDRAW_UZS = 10000
 
         text = (
             "👥 <b>Реферальная система</b>\n\n"
@@ -264,7 +265,7 @@ def query_handler(call):
             f"💰 Оборот рефералов: {total} UZS\n"
             f"📊 Всего заработано (2%): {earned} UZS\n"
             f"💳 Доступно к выводу: {balance} UZS\n\n"
-            f"📤 Минимальный вывод: 75⭐ (~{MIN_WITHDRAW_UZS} UZS)"
+            f"📤 Минимальный вывод: ~{MIN_WITHDRAW_UZS} UZS"
         )
 
         kb = types.InlineKeyboardMarkup()
@@ -272,8 +273,7 @@ def query_handler(call):
         if balance >= MIN_WITHDRAW_UZS:
             kb.add(types.InlineKeyboardButton("💸 Вывести бонусы", callback_data="ref_withdraw"))
         else:
-            kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))
-        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
+            kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
 
         bot.edit_message_text(
             text,
@@ -295,35 +295,39 @@ def query_handler(call):
         balance = row[0] if row else 0
         conn.close()
 
-        MIN_WITHDRAW_UZS = 12000
+        MIN_WITHDRAW_UZS = 10000
 
         if balance < MIN_WITHDRAW_UZS:
             bot.answer_callback_query(call.id, "❌ Недостаточно бонусов", show_alert=True)
             return
 
-        # Показываем экран подтверждения вывода
+        # Сохраняем сумму и просим реквизиты
+        user_orders[uid] = {"withdraw_amount": balance}
+
         kb = types.InlineKeyboardMarkup()
-        kb.add(types.InlineKeyboardButton("✅ Подтвердить вывод", callback_data=f"ref_confirm_{balance}"))
-        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="ref"))
+        kb.add(types.InlineKeyboardButton("⬅️ Отмена", callback_data="ref"))
 
         bot.edit_message_text(
             f"💸 <b>Вывод реферальных бонусов</b>\n\n"
             f"💳 Сумма к выводу: <b>{balance} UZS</b>\n\n"
-            f"После подтверждения администратор свяжется с вами для оплаты.",
+            f"📋 Введите ваши реквизиты для получения оплаты:\n\n"
+            f"<i>Пример:\n"
+            f"9860 1234 5678 9012\n"
+            f"Иванов Иван</i>",
             uid, mid, parse_mode='HTML', reply_markup=kb
         )
+        bot.register_next_step_handler_by_chat_id(uid, handle_withdraw_requisites)
 
     elif call.data.startswith("ref_confirm_"):
-        amount = int(call.data.replace("ref_confirm_", ""))
+        parts = call.data.replace("ref_confirm_", "").split("|")
+        amount = int(parts[0])
+        requisites = parts[1] if len(parts) > 1 else "не указаны"
+        uname = call.from_user.username or call.from_user.first_name
 
         conn = sqlite3.connect('users.db')
         cur = conn.cursor()
-
-        # Обнуляем баланс и записываем заявку
         cur.execute("UPDATE users SET ref_balance = 0 WHERE id=?", (uid,))
         cur.execute("INSERT INTO ref_withdrawals (user_id, amount) VALUES (?, ?)", (uid, amount))
-        uname = call.from_user.username or call.from_user.first_name
-
         conn.commit()
         conn.close()
 
@@ -332,7 +336,8 @@ def query_handler(call):
         kb.add(types.InlineKeyboardButton("🏠 Главное меню", callback_data="home"))
         bot.edit_message_text(
             "✅ <b>Заявка на вывод принята!</b>\n\n"
-            f"💰 Сумма: {amount} UZS\n\n"
+            f"💰 Сумма: <b>{amount} UZS</b>\n"
+            f"💳 Реквизиты: <code>{requisites}</code>\n\n"
             "Администратор обработает вашу заявку в ближайшее время.",
             uid, mid, parse_mode='HTML', reply_markup=kb
         )
@@ -342,7 +347,8 @@ def query_handler(call):
             ADMIN_ID,
             f"💸 <b>Заявка на вывод реф. бонусов</b>\n\n"
             f"👤 @{uname} (ID: {uid})\n"
-            f"💰 Сумма: {amount} UZS",
+            f"💰 Сумма: <b>{amount} UZS</b>\n"
+            f"💳 Реквизиты:\n<code>{requisites}</code>",
             parse_mode='HTML',
             reply_markup=types.InlineKeyboardMarkup().add(
                 types.InlineKeyboardButton("✅ Выплачено", callback_data=f"ref_paid|{uid}"),
@@ -469,6 +475,34 @@ def get_target_username(message):
     )
     bot.register_next_step_handler(msg, finish_order_with_target)
 
+# --- РЕКВИЗИТЫ ДЛЯ ВЫВОДА ---
+def handle_withdraw_requisites(message):
+    uid = message.from_user.id
+    requisites = message.text.strip()
+
+    order = user_orders.get(uid, {})
+    amount = order.get("withdraw_amount", 0)
+
+    if not amount:
+        bot.send_message(uid, "❌ Ошибка. Попробуйте заново через рефералку.",
+                         reply_markup=main_kb(uid))
+        return
+
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"ref_confirm_{amount}|{requisites}"))
+    kb.add(types.InlineKeyboardButton("✏️ Изменить реквизиты", callback_data="ref_withdraw"))
+    kb.add(types.InlineKeyboardButton("⬅️ Отмена", callback_data="ref"))
+
+    bot.send_message(
+        uid,
+        f"📋 <b>Проверьте данные:</b>\n\n"
+        f"💰 Сумма: <b>{amount} UZS</b>\n"
+        f"💳 Реквизиты:\n<code>{requisites}</code>\n\n"
+        f"Всё верно?",
+        parse_mode='HTML',
+        reply_markup=kb
+    )
+
 # --- СВОЯ СУММА ---
 def handle_custom_amount(message):
     uid = message.from_user.id
@@ -547,6 +581,54 @@ def finish_order_with_target(message):
         caption=f"👤 @{uname}\n🎯 {target}\n⭐ {c}\n💰 {p} UZS",
         reply_markup=kb
     )
+
+# --- АДМИН: ручная привязка реферера ---
+# Использование: /setref USER_ID REFERRER_ID
+@bot.message_handler(commands=['setref'])
+def setref(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1])
+        referrer_id = int(parts[2])
+
+        conn = sqlite3.connect('users.db')
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET referrer_id=? WHERE id=?", (referrer_id, user_id))
+        conn.commit()
+        conn.close()
+
+        bot.send_message(message.chat.id, f"✅ Готово! Пользователю {user_id} назначен реферер {referrer_id}")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /setref USER_ID REFERRER_ID")
+
+# --- АДМИН: посмотреть запись юзера в БД ---
+@bot.message_handler(commands=['checkuser'])
+def checkuser(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        user_id = int(message.text.split()[1])
+        conn = sqlite3.connect('users.db')
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, spent, referrer_id, ref_earned, ref_balance FROM users WHERE id=?", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+
+        if row:
+            bot.send_message(message.chat.id,
+                f"👤 ID: {row[0]}\n"
+                f"🔤 Username: {row[1]}\n"
+                f"💰 Потрачено: {row[2]}\n"
+                f"👥 Реферер: {row[3]}\n"
+                f"📊 Заработано реф: {row[4]}\n"
+                f"💳 Баланс реф: {row[5]}"
+            )
+        else:
+            bot.send_message(message.chat.id, "❌ Пользователь не найден")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /checkuser USER_ID")
 
 # --- RUN ---
 if __name__ == "__main__":
