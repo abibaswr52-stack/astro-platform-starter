@@ -223,9 +223,10 @@ def custom_logic(message):
 # --- ОПЛАТА ---
 def pay_screen(uid, mid, c, p):
     text = f"💳 К оплате: {p} UZS\n⭐ {c}\n\n{CARD_DETAILS}"
-    kb = types.InlineKeyboardMarkup().add(
-        kb.add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
-        kb.add(types.InlineKeyboardButton("❌ Отмена", callback_data="shop"))
+
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
+    kb.add(types.InlineKeyboardButton("❌ Отмена", callback_data="shop"))
 
     if mid:
         bot.edit_message_text(text, uid, mid, reply_markup=kb)
