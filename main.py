@@ -48,6 +48,10 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN ref_balance INTEGER DEFAULT 0")
     except:
         pass
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN purchases INTEGER DEFAULT 0")
+    except:
+        pass
 
     # Таблица заявок на вывод реф. бонусов
     cur.execute('''
@@ -72,7 +76,7 @@ def update_spent(uid, uname, amount):
     cur = conn.cursor()
 
     cur.execute("INSERT OR IGNORE INTO users (id, username, spent) VALUES (?, ?, 0)", (uid, uname))
-    cur.execute("UPDATE users SET spent = spent + ?, username = ? WHERE id = ?", (amount, uname, uid))
+    cur.execute("UPDATE users SET spent = spent + ?, purchases = purchases + 1, username = ? WHERE id = ?", (amount, uname, uid))
 
     # Коммитим сначала — чтобы запись точно была в БД перед чтением
     conn.commit()
@@ -217,15 +221,22 @@ def query_handler(call):
     elif call.data == "profile":
         conn = sqlite3.connect('users.db')
         cur = conn.cursor()
-        cur.execute("SELECT spent FROM users WHERE id=?", (uid,))
+        cur.execute("SELECT username, spent, ref_earned, purchases FROM users WHERE id=?", (uid,))
         res = cur.fetchone()
         conn.close()
 
-        spent = res[0] if res else 0
+        username = f"@{res[0]}" if res and res[0] else "не указан"
+        spent = res[1] if res else 0
+        ref_earned = res[2] if res else 0
+        purchases = res[3] if res else 0
 
-        # ← Кнопка "Назад" уже была, оставляем
         bot.edit_message_text(
-            f"👤 <b>Профиль</b>\n💰 Потрачено: {spent} UZS",
+            f"👤 <b>Профиль</b>\n\n"
+            f"🔤 Ник: {username}\n"
+            f"🆔 ID: <code>{uid}</code>\n\n"
+            f"🛍 Количество покупок: <b>{purchases}</b>\n"
+            f"💰 Потрачено: <b>{spent} UZS</b>\n"
+            f"💸 Заработано (рефералы): <b>{ref_earned} UZS</b>",
             uid, mid, parse_mode='HTML',
             reply_markup=types.InlineKeyboardMarkup().add(
                 types.InlineKeyboardButton("⬅️ Назад", callback_data="home")
@@ -239,9 +250,10 @@ def query_handler(call):
         res = cur.fetchall()
         conn.close()
 
-        text = "<b>🏆 Топ:</b>\n\n"
+        text = "<b>🏆 Топ покупателей:</b>\n\n"
         for i, r in enumerate(res, 1):
-            text += f"{i}. {r[0]} — {r[1]} UZS\n"
+            uname_top = f"@{r[0]}" if r[0] else "аноним"
+            text += f"{i}. {uname_top} — {r[1]} UZS\n"
 
         # ← Кнопка "Назад" уже была, оставляем
         bot.edit_message_text(
@@ -261,6 +273,11 @@ def query_handler(call):
         conn = sqlite3.connect('users.db')
         cur = conn.cursor()
 
+        # Гарантируем что юзер есть в БД
+        cur.execute("INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)",
+                    (uid, call.from_user.username or ""))
+        conn.commit()
+
         cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id=?", (uid,))
         invited = cur.fetchone()[0]
 
@@ -269,8 +286,8 @@ def query_handler(call):
 
         cur.execute("SELECT ref_earned, ref_balance FROM users WHERE id=?", (uid,))
         row = cur.fetchone()
-        earned = row[0] if row else 0
-        balance = row[1] if row else 0
+        earned = row[0] if row and row[0] else 0
+        balance = row[1] if row and row[1] else 0
 
         conn.close()
 
@@ -417,7 +434,6 @@ def query_handler(call):
         kb.add(types.InlineKeyboardButton("💬 Написать в поддержку", url="https://t.me/RandomGamesUzbAdmin"))
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
         bot.edit_message_text(faq_text, uid, mid, parse_mode='HTML', reply_markup=kb)
-        bot.answer_callback_query(call.id, f"Баланс админа: {ADMIN_BALANCE}")
 
     elif call.data == "delete":
         user_orders.pop(uid, None)
@@ -437,24 +453,45 @@ def query_handler(call):
 
     elif call.data in PRICES:
         c = int(call.data.replace("p",""))
-        pay_screen(uid, mid, c, PRICES[call.data])
+        p = PRICES[call.data]
+        # Проверка баланса бота
+        if BOT_STARS_BALANCE > 0 and c > BOT_STARS_BALANCE:
+            bot.answer_callback_query(
+                call.id,
+                f"⚠️ На балансе только {BOT_STARS_BALANCE} ⭐. Выберите меньшее количество.",
+                show_alert=True
+            )
+            return
+        # Сразу спрашиваем юзернейм получателя
+        user_orders[uid] = {"count": c, "price": p}
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
+        bot.edit_message_text(
+            f"⭐ <b>{c} звёзд — {p} UZS</b>\n\n"
+            "📲 Введите <b>username</b> или <b>ссылку</b> на аккаунт получателя звёзд:",
+            uid, mid, parse_mode='HTML', reply_markup=kb
+        )
+        bot.register_next_step_handler_by_chat_id(uid, get_target_username)
 
     # --- ОБРАБОТКА ПОДТВЕРЖДЕНИЯ ОПЛАТЫ (pay_COUNT_PRICE) ---
     elif call.data.startswith("pay_"):
         parts = call.data.split("_")
         c = int(parts[1])
         p = int(parts[2])
-        user_orders[uid] = {"count": c, "price": p}
+        order = user_orders.get(uid, {})
+        order["count"] = c
+        order["price"] = p
+        user_orders[uid] = order
 
-        # Запрашиваем username получателя
         kb = types.InlineKeyboardMarkup()
-        kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data=f"p{c}"))
-
-        msg = bot.edit_message_text(
-            "📲 Введите <b>username</b> или <b>ссылку</b> на аккаунт получателя звёзд:",
+        kb.add(types.InlineKeyboardButton("⬅️ Отмена", callback_data="shop"))
+        bot.edit_message_text(
+            f"💳 К оплате: <b>{p} UZS</b> за ⭐{c}\n\n"
+            f"📋 Введите реквизиты вашей карты для возможного возврата\n"
+            f"<i>(номер карты и имя владельца)</i>:",
             uid, mid, parse_mode='HTML', reply_markup=kb
         )
-        bot.register_next_step_handler_by_chat_id(uid, get_target_username)
+        bot.register_next_step_handler_by_chat_id(uid, get_buyer_card)
 
     # --- ПОДТВЕРЖДЕНИЕ ОПЛАТЫ АДМИНОМ ---
     elif call.data.startswith("adm_ok|"):
@@ -483,7 +520,7 @@ def query_handler(call):
         )
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
-# --- ПОЛУЧЕНИЕ USERNAME ПОЛУЧАТЕЛЯ ---
+# --- ШАГ 1: получаем юзернейм получателя ---
 def get_target_username(message):
     uid = message.from_user.id
     target = message.text.strip()
@@ -495,14 +532,34 @@ def get_target_username(message):
     c = order.get("count")
     p = order.get("price")
 
+    # Показываем экран оплаты с реквизитами
+    pay_screen(uid, None, c, p)
+
+# --- ШАГ 2: показ экрана оплаты, пользователь платит и жмёт "Я оплатил" ---
+# (pay_screen → кнопка pay_ → get_buyer_card)
+
+# --- ШАГ 3: получаем реквизиты карты покупателя ---
+def get_buyer_card(message):
+    uid = message.from_user.id
+    card = message.text.strip()
+
+    order = user_orders.get(uid, {})
+    order["buyer_card"] = card
+    user_orders[uid] = order
+
+    c = order.get("count")
+    p = order.get("price")
+    target = order.get("target", "не указан")
+
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("⬅️ Отмена", callback_data="shop"))
 
     msg = bot.send_message(
         uid,
+        f"✅ Реквизиты сохранены.\n\n"
         f"🎯 Получатель: <b>{target}</b>\n"
-        f"⭐ {c} звёзд — {p} UZS\n\n"
-        f"📎 Отправьте <b>фото чека</b> об оплате:",
+        f"⭐ {c} звёзд — <b>{p} UZS</b>\n\n"
+        f"📎 Теперь отправьте <b>фото чека</b> об оплате:",
         parse_mode='HTML',
         reply_markup=kb
     )
