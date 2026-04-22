@@ -21,7 +21,7 @@ TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
-ADMIN_ID = 1411441331
+ADMIN_ID = 1001209009
 CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 
 ADMIN_BALANCE = 0
