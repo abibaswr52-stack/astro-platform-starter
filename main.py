@@ -1,6 +1,7 @@
 import os
 import telebot
-import sqlite3
+import psycopg2
+import urllib.parse
 from telebot import types
 from flask import Flask
 from threading import Thread
@@ -22,42 +23,43 @@ bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
 ADMIN_ID = 1001209009
+SUPER_ADMIN_ID = 1411441331 # Тот самый Бог бота
+
 CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 
 ADMIN_BALANCE = 0
 user_orders = {}
+BOT_STARS_BALANCE = 0
+
+# --- SUPABASE (POSTGRESQL) URL ---
+# Кодируем пароль со спецсимволами, чтобы URL был валидным
+db_pass = urllib.parse.quote_plus("iu92w*FzS$vJGs.")
+DATABASE_URL = f"postgresql://postgres:{db_pass}@db.aetfzeisobxgidmovrns.supabase.co:5432/postgres"
 
 # --- БД ---
 def init_db():
-    conn = sqlite3.connect('users.db')
+    conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
+    # В Postgres вместо INTEGER PRIMARY KEY используем BIGINT для ID Telegram, 
+    # а для автоинкремента SERIAL
     cur.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
+            id BIGINT PRIMARY KEY,
             username TEXT,
             spent INTEGER DEFAULT 0,
-            referrer_id INTEGER DEFAULT NULL,
+            referrer_id BIGINT DEFAULT NULL,
             ref_earned INTEGER DEFAULT 0,
-            ref_balance INTEGER DEFAULT 0
+            ref_balance INTEGER DEFAULT 0,
+            purchases INTEGER DEFAULT 0
         )
     ''')
-
-    # Добавляем ref_balance если его нет (для старых баз)
-    try:
-        cur.execute("ALTER TABLE users ADD COLUMN ref_balance INTEGER DEFAULT 0")
-    except:
-        pass
-    try:
-        cur.execute("ALTER TABLE users ADD COLUMN purchases INTEGER DEFAULT 0")
-    except:
-        pass
 
     # Таблица заявок на вывод реф. бонусов
     cur.execute('''
         CREATE TABLE IF NOT EXISTS ref_withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
             amount INTEGER,
             status TEXT DEFAULT 'pending'
         )
@@ -72,23 +74,24 @@ init_db()
 def update_spent(uid, uname, amount):
     global ADMIN_BALANCE
 
-    conn = sqlite3.connect('users.db')
+    conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
-    cur.execute("INSERT OR IGNORE INTO users (id, username, spent) VALUES (?, ?, 0)", (uid, uname))
-    cur.execute("UPDATE users SET spent = spent + ?, purchases = purchases + 1, username = ? WHERE id = ?", (amount, uname, uid))
+    # Замена INSERT OR IGNORE на синтаксис Postgres
+    cur.execute("INSERT INTO users (id, username, spent) VALUES (%s, %s, 0) ON CONFLICT (id) DO NOTHING", (uid, uname))
+    cur.execute("UPDATE users SET spent = spent + %s, purchases = purchases + 1, username = %s WHERE id = %s", (amount, uname, uid))
 
-    # Коммитим сначала — чтобы запись точно была в БД перед чтением
+    # Коммитим сначала
     conn.commit()
 
     # Теперь читаем referrer_id
-    cur.execute("SELECT referrer_id FROM users WHERE id=?", (uid,))
+    cur.execute("SELECT referrer_id FROM users WHERE id=%s", (uid,))
     ref = cur.fetchone()
 
     if ref and ref[0]:
         bonus = int(amount * 0.05)
         cur.execute(
-            "UPDATE users SET ref_earned = ref_earned + ?, ref_balance = ref_balance + ? WHERE id=?",
+            "UPDATE users SET ref_earned = ref_earned + %s, ref_balance = ref_balance + %s WHERE id=%s",
             (bonus, bonus, ref[0])
         )
         conn.commit()
@@ -107,9 +110,6 @@ def update_spent(uid, uname, amount):
     ADMIN_BALANCE += amount
     conn.commit()
     conn.close()
-
-# --- БАЛАНС БОТА (обновляется вручную админом) ---
-BOT_STARS_BALANCE = 0
 
 def main_kb(uid):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -150,31 +150,39 @@ PRICES = {
     "p500": 80000, "p1000": 145000
 }
 
-# --- START (НЕ МЕНЯЛ ТВОЙ ТЕКСТ) ---
+# --- START ---
 @bot.message_handler(commands=['start'])
 def welcome(message):
 
-    # 🔥 РЕФ КОД (ВОТ ЭТО БЫЛО СЛОМАНО РАНЬШЕ)
+    # ПРИВЕТСТВИЕ ДЛЯ ВЫСШЕГО АДМИНА
+    if message.from_user.id == SUPER_ADMIN_ID:
+        bot.send_message(message.chat.id, 
+            "👑 <b>ПРИВЕТСТВУЮ, СОЗДАТЕЛЬ! БОГ ЭТОГО БОТА ВЕРНУЛСЯ!</b> 👑\n\n"
+            "Ваша власть здесь абсолютна. Базы данных подчиняются вашему слову.\n"
+            "Используйте команду /god_help для доступа к божественным силам.", 
+            parse_mode='HTML')
+
+    # 🔥 РЕФ КОД
     args = message.text.split()
     if len(args) > 1:
         try:
             ref_id = int(args[1].replace("ref_", ""))
 
-            conn = sqlite3.connect('users.db')
+            conn = psycopg2.connect(DATABASE_URL)
             cur = conn.cursor()
 
             # Сначала создаём юзера если нет
-            cur.execute("INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)",
+            cur.execute("INSERT INTO users (id, username) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
                         (message.from_user.id, message.from_user.username or ""))
             conn.commit()
 
             # Читаем текущий referrer_id
-            cur.execute("SELECT referrer_id FROM users WHERE id=?", (message.from_user.id,))
+            cur.execute("SELECT referrer_id FROM users WHERE id=%s", (message.from_user.id,))
             res = cur.fetchone()
 
             # Записываем реферера только если его ещё нет И это не сам реферер
             if res is not None and res[0] is None and ref_id != message.from_user.id:
-                cur.execute("UPDATE users SET referrer_id=? WHERE id=?",
+                cur.execute("UPDATE users SET referrer_id=%s WHERE id=%s",
                             (ref_id, message.from_user.id))
                 conn.commit()
 
@@ -219,9 +227,9 @@ def query_handler(call):
         bot.edit_message_text(shop_text, uid, mid, parse_mode='HTML', reply_markup=shop_kb())
 
     elif call.data == "profile":
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT username, spent, ref_earned, purchases FROM users WHERE id=?", (uid,))
+        cur.execute("SELECT username, spent, ref_earned, purchases FROM users WHERE id=%s", (uid,))
         res = cur.fetchone()
         conn.close()
 
@@ -244,7 +252,7 @@ def query_handler(call):
         )
 
     elif call.data == "top":
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
         cur.execute("SELECT username, spent FROM users ORDER BY spent DESC LIMIT 10")
         res = cur.fetchall()
@@ -255,12 +263,8 @@ def query_handler(call):
             uname_top = f"@{r[0]}" if r[0] else "аноним"
             text += f"{i}. {uname_top} — {r[1]} UZS\n"
 
-        # ← Кнопка "Назад" уже была, оставляем
         bot.edit_message_text(
-            text,
-            uid,
-            mid,
-            parse_mode='HTML',
+            text, uid, mid, parse_mode='HTML',
             reply_markup=types.InlineKeyboardMarkup().add(
                 types.InlineKeyboardButton("⬅️ Назад", callback_data="home")
             )
@@ -270,21 +274,22 @@ def query_handler(call):
         username = bot.get_me().username
         link = f"https://t.me/{username}?start=ref_{uid}"
 
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
         # Гарантируем что юзер есть в БД
-        cur.execute("INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)",
+        cur.execute("INSERT INTO users (id, username) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
                     (uid, call.from_user.username or ""))
         conn.commit()
 
-        cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id=?", (uid,))
+        cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id=%s", (uid,))
         invited = cur.fetchone()[0]
 
-        cur.execute("SELECT SUM(spent) FROM users WHERE referrer_id=?", (uid,))
-        total = cur.fetchone()[0] or 0
+        cur.execute("SELECT SUM(spent) FROM users WHERE referrer_id=%s", (uid,))
+        total_tuple = cur.fetchone()
+        total = total_tuple[0] if total_tuple and total_tuple[0] else 0
 
-        cur.execute("SELECT ref_earned, ref_balance FROM users WHERE id=?", (uid,))
+        cur.execute("SELECT ref_earned, ref_balance FROM users WHERE id=%s", (uid,))
         row = cur.fetchone()
         earned = row[0] if row and row[0] else 0
         balance = row[1] if row and row[1] else 0
@@ -304,29 +309,22 @@ def query_handler(call):
         )
 
         kb = types.InlineKeyboardMarkup()
-        # Кнопка вывода активна только если хватает баланса
         if balance >= MIN_WITHDRAW_UZS:
             kb.add(types.InlineKeyboardButton("💸 Вывести бонусы", callback_data="ref_withdraw"))
         else:
             kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN_WITHDRAW_UZS} UZS)", callback_data="ref_low"))
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
 
-        bot.edit_message_text(
-            text,
-            uid,
-            mid,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
+        bot.edit_message_text(text, uid, mid, parse_mode="HTML", reply_markup=kb)
 
     # --- ВЫВОД РЕФ. БОНУСОВ ---
     elif call.data == "ref_low":
         bot.answer_callback_query(call.id, "❌ Недостаточно бонусов для вывода", show_alert=True)
 
     elif call.data == "ref_withdraw":
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT ref_balance FROM users WHERE id=?", (uid,))
+        cur.execute("SELECT ref_balance FROM users WHERE id=%s", (uid,))
         row = cur.fetchone()
         balance = row[0] if row else 0
         conn.close()
@@ -337,7 +335,6 @@ def query_handler(call):
             bot.answer_callback_query(call.id, "❌ Недостаточно бонусов", show_alert=True)
             return
 
-        # Сохраняем сумму и просим реквизиты
         user_orders[uid] = {"withdraw_amount": balance}
 
         kb = types.InlineKeyboardMarkup()
@@ -360,14 +357,13 @@ def query_handler(call):
         requisites = parts[1] if len(parts) > 1 else "не указаны"
         uname = call.from_user.username or call.from_user.first_name
 
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("UPDATE users SET ref_balance = 0 WHERE id=?", (uid,))
-        cur.execute("INSERT INTO ref_withdrawals (user_id, amount) VALUES (?, ?)", (uid, amount))
+        cur.execute("UPDATE users SET ref_balance = 0 WHERE id=%s", (uid,))
+        cur.execute("INSERT INTO ref_withdrawals (user_id, amount) VALUES (%s, %s)", (uid, amount))
         conn.commit()
         conn.close()
 
-        # Уведомляем пользователя
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("🏠 Главное меню", callback_data="home"))
         bot.edit_message_text(
@@ -378,7 +374,6 @@ def query_handler(call):
             uid, mid, parse_mode='HTML', reply_markup=kb
         )
 
-        # Уведомляем админа
         bot.send_message(
             ADMIN_ID,
             f"💸 <b>Заявка на вывод реф. бонусов</b>\n\n"
@@ -405,10 +400,9 @@ def query_handler(call):
         target_uid = int(parts[1])
         amount = int(parts[2])
 
-        # Возвращаем баланс
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("UPDATE users SET ref_balance = ref_balance + ? WHERE id=?", (amount, target_uid))
+        cur.execute("UPDATE users SET ref_balance = ref_balance + %s WHERE id=%s", (amount, target_uid))
         conn.commit()
         conn.close()
 
@@ -454,7 +448,6 @@ def query_handler(call):
     elif call.data in PRICES:
         c = int(call.data.replace("p",""))
         p = PRICES[call.data]
-        # Проверка баланса бота
         if BOT_STARS_BALANCE > 0 and c > BOT_STARS_BALANCE:
             bot.answer_callback_query(
                 call.id,
@@ -462,7 +455,6 @@ def query_handler(call):
                 show_alert=True
             )
             return
-        # Сразу спрашиваем юзернейм получателя
         user_orders[uid] = {"count": c, "price": p}
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
@@ -473,7 +465,6 @@ def query_handler(call):
         )
         bot.register_next_step_handler_by_chat_id(uid, get_target_username)
 
-    # --- ОБРАБОТКА ПОДТВЕРЖДЕНИЯ ОПЛАТЫ (pay_COUNT_PRICE) ---
     elif call.data.startswith("pay_"):
         parts = call.data.split("_")
         c = int(parts[1])
@@ -493,7 +484,6 @@ def query_handler(call):
         )
         bot.register_next_step_handler_by_chat_id(uid, get_buyer_card)
 
-    # --- ПОДТВЕРЖДЕНИЕ ОПЛАТЫ АДМИНОМ ---
     elif call.data.startswith("adm_ok|"):
         parts = call.data.split("|")
         target_uid = int(parts[1])
@@ -520,33 +510,22 @@ def query_handler(call):
         )
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
-# --- ШАГ 1: получаем юзернейм получателя ---
 def get_target_username(message):
     uid = message.from_user.id
     target = message.text.strip()
-
     order = user_orders.get(uid, {})
     order["target"] = target
     user_orders[uid] = order
-
     c = order.get("count")
     p = order.get("price")
-
-    # Показываем экран оплаты с реквизитами
     pay_screen(uid, None, c, p)
 
-# --- ШАГ 2: показ экрана оплаты, пользователь платит и жмёт "Я оплатил" ---
-# (pay_screen → кнопка pay_ → get_buyer_card)
-
-# --- ШАГ 3: получаем реквизиты карты покупателя ---
 def get_buyer_card(message):
     uid = message.from_user.id
     card = message.text.strip()
-
     order = user_orders.get(uid, {})
     order["buyer_card"] = card
     user_orders[uid] = order
-
     c = order.get("count")
     p = order.get("price")
     target = order.get("target", "не указан")
@@ -565,17 +544,14 @@ def get_buyer_card(message):
     )
     bot.register_next_step_handler(msg, finish_order_with_target)
 
-# --- РЕКВИЗИТЫ ДЛЯ ВЫВОДА ---
 def handle_withdraw_requisites(message):
     uid = message.from_user.id
     requisites = message.text.strip()
-
     order = user_orders.get(uid, {})
     amount = order.get("withdraw_amount", 0)
 
     if not amount:
-        bot.send_message(uid, "❌ Ошибка. Попробуйте заново через рефералку.",
-                         reply_markup=main_kb(uid))
+        bot.send_message(uid, "❌ Ошибка. Попробуйте заново через рефералку.", reply_markup=main_kb(uid))
         return
 
     kb = types.InlineKeyboardMarkup()
@@ -593,10 +569,8 @@ def handle_withdraw_requisites(message):
         reply_markup=kb
     )
 
-# --- СВОЯ СУММА ---
 def handle_custom_amount(message):
     uid = message.from_user.id
-
     try:
         c = int(message.text.strip())
     except ValueError:
@@ -621,23 +595,19 @@ def handle_custom_amount(message):
         bot.register_next_step_handler(msg, handle_custom_amount)
         return
 
-    p = c * 180  # 180 UZS за звезду
+    p = c * 180 
     pay_screen(uid, None, c, p)
 
-# --- PAY ---
 def pay_screen(uid, mid, c, p):
     text = f"💳 К оплате: {p} UZS\n⭐ {c}\n\n{CARD_DETAILS}"
-
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
-    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))  # ← ДОБАВЛЕНО
-
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
     if mid:
         bot.edit_message_text(text, uid, mid, reply_markup=kb)
     else:
         bot.send_message(uid, text, reply_markup=kb)
 
-# --- FINISH (НЕ ТРОГАЛ ТВОЙ КУСОК) ---
 def finish_order_with_target(message):
     if message.content_type != 'photo':
         msg = bot.send_message(message.chat.id, "❌ Нужен фото чек")
@@ -672,12 +642,11 @@ def finish_order_with_target(message):
         reply_markup=kb
     )
 
-# --- АДМИН: установить баланс бота ---
-# Использование: /setbalance 5000
+# --- АДМИН: обычные команды ---
 @bot.message_handler(commands=['setbalance'])
 def setbalance(message):
     global BOT_STARS_BALANCE
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in [ADMIN_ID, SUPER_ADMIN_ID]:
         return
     try:
         amount = int(message.text.split()[1])
@@ -686,20 +655,18 @@ def setbalance(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /setbalance 5000")
 
-# --- АДМИН: ручная привязка реферера ---
-# Использование: /setref USER_ID REFERRER_ID
 @bot.message_handler(commands=['setref'])
 def setref(message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in [ADMIN_ID, SUPER_ADMIN_ID]:
         return
     try:
         parts = message.text.split()
         user_id = int(parts[1])
         referrer_id = int(parts[2])
 
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("UPDATE users SET referrer_id=? WHERE id=?", (referrer_id, user_id))
+        cur.execute("UPDATE users SET referrer_id=%s WHERE id=%s", (referrer_id, user_id))
         conn.commit()
         conn.close()
 
@@ -707,16 +674,15 @@ def setref(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /setref USER_ID REFERRER_ID")
 
-# --- АДМИН: посмотреть запись юзера в БД ---
 @bot.message_handler(commands=['checkuser'])
 def checkuser(message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in [ADMIN_ID, SUPER_ADMIN_ID]:
         return
     try:
         user_id = int(message.text.split()[1])
-        conn = sqlite3.connect('users.db')
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT id, username, spent, referrer_id, ref_earned, ref_balance FROM users WHERE id=?", (user_id,))
+        cur.execute("SELECT id, username, spent, referrer_id, ref_earned, ref_balance FROM users WHERE id=%s", (user_id,))
         row = cur.fetchone()
         conn.close()
 
@@ -733,6 +699,108 @@ def checkuser(message):
             bot.send_message(message.chat.id, "❌ Пользователь не найден")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /checkuser USER_ID")
+
+# ==========================================
+# БОЖЕСТВЕННЫЙ РЕЖИМ (ТОЛЬКО ДЛЯ 1411441331)
+# ==========================================
+
+@bot.message_handler(commands=['god_help'])
+def god_help(message):
+    if message.from_user.id != SUPER_ADMIN_ID:
+        return
+    text = (
+        "👑 <b>КОМАНДЫ СОЗДАТЕЛЯ</b> 👑\n\n"
+        "<code>/god_broadcast [текст]</code> — Массовая рассылка всем юзерам из БД\n"
+        "<code>/god_setstat [ID] [потрачено] [покупок]</code> — Накрутить стату юзеру\n"
+        "<code>/god_addrefbal [ID] [сумма]</code> — Накинуть реф. баланс юзеру напрямую\n"
+        "<code>/god_sql [запрос]</code> — Прямой SQL запрос к базе (ОПАСНО!)"
+    )
+    bot.send_message(message.chat.id, text, parse_mode='HTML')
+
+@bot.message_handler(commands=['god_broadcast'])
+def god_broadcast(message):
+    if message.from_user.id != SUPER_ADMIN_ID:
+        return
+    text = message.text.replace("/god_broadcast", "").strip()
+    if not text:
+        bot.send_message(message.chat.id, "❌ Введите текст: /god_broadcast ТЕКСТ")
+        return
+    
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users")
+    users = cur.fetchall()
+    conn.close()
+
+    success, failed = 0, 0
+    bot.send_message(message.chat.id, "🔄 Рассылка начата...")
+    for u in users:
+        try:
+            bot.send_message(u[0], text, parse_mode='HTML')
+            success += 1
+        except:
+            failed += 1
+    
+    bot.send_message(message.chat.id, f"✅ Рассылка завершена!\nУспешно: {success}\nНеудачно (заблочили): {failed}")
+
+@bot.message_handler(commands=['god_setstat'])
+def god_setstat(message):
+    if message.from_user.id != SUPER_ADMIN_ID:
+        return
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1])
+        spent = int(parts[2])
+        purchases = int(parts[3])
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET spent = spent + %s, purchases = purchases + %s WHERE id = %s", (spent, purchases, user_id))
+        conn.commit()
+        conn.close()
+        bot.send_message(message.chat.id, f"✅ Статистика {user_id} увеличена на {spent} UZS и {purchases} покупок.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /god_setstat [ID] [потрачено] [покупок]")
+
+@bot.message_handler(commands=['god_addrefbal'])
+def god_addrefbal(message):
+    if message.from_user.id != SUPER_ADMIN_ID:
+        return
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1])
+        amount = int(parts[2])
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET ref_balance = ref_balance + %s, ref_earned = ref_earned + %s WHERE id = %s", (amount, amount, user_id))
+        conn.commit()
+        conn.close()
+        bot.send_message(message.chat.id, f"✅ Пользователю {user_id} начислено {amount} реф. баланса.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка: {e}\nФормат: /god_addrefbal [ID] [сумма]")
+
+@bot.message_handler(commands=['god_sql'])
+def god_sql(message):
+    if message.from_user.id != SUPER_ADMIN_ID:
+        return
+    query = message.text.replace("/god_sql", "").strip()
+    if not query:
+        return bot.send_message(message.chat.id, "❌ Пустой запрос")
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute(query)
+        if query.lower().startswith("select"):
+            res = cur.fetchall()
+            bot.send_message(message.chat.id, f"✅ Результат:\n{res}")
+        else:
+            conn.commit()
+            bot.send_message(message.chat.id, "✅ Запрос успешно выполнен и сохранен.")
+        conn.close()
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ SQL Ошибка:\n{e}")
 
 # --- RUN ---
 if __name__ == "__main__":
