@@ -43,23 +43,24 @@ DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postg
 
 # --- БД ---
 def init_db():
-    # 1. Настройки подключения
+    # --- ВСТАВЬТЕ СЮДА НОВЫЙ ПАРОЛЬ ПОСЛЕ СБРОСА ---
+    new_password = "ibaniuz2230" 
+    project_id = "aetfzeisobxgidmovrns"
+
     config = {
-        "host": "aws-0-ap-southeast-1.pooler.supabase.com",
+        "host": f"db.{project_id}.supabase.co", # Используем ваш прямой ID в хосте
         "port": "6543",
         "database": "postgres",
-        "user": "postgres.aetfzeisobxgidmovrns",
-        "password": "ibaniuz2230", # Если меняли пароль — впишите новый
+        "user": f"postgres.{project_id}",
+        "password": new_password,
         "sslmode": "require"
     }
 
     conn = None
     try:
-        # 2. Пытаемся подключиться
         conn = psycopg2.connect(**config)
         cur = conn.cursor()
         
-        # 3. Создаем таблицу
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id BIGINT PRIMARY KEY,
@@ -74,13 +75,14 @@ def init_db():
         
         conn.commit()
         cur.close()
-        print("✅ База данных успешно подключена и настроена!")
+        print("✅ УСПЕХ: База данных подключена через пулер!")
 
     except Exception as e:
         print(f"❌ Ошибка подключения: {e}")
     finally:
         if conn:
             conn.close()
+
 
     # Таблица заявок на вывод реф. бонусов
     cur.execute('''
