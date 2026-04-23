@@ -31,19 +31,15 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# --- ПРЯМОЕ ПОДКЛЮЧЕНИЕ (БЕЗ ПУЛЕРА) ---
-db_pass = urllib.parse.quote_plus("ibaniuz2230")
+import urllib.parse
+
+# Впишите сюда пароль, который только что создали через Reset Password
+db_pass = urllib.parse.quote_plus("ibaniuz2230") 
 project_id = "aetfzeisobxgidmovrns"
+db_host = "://supabase.com"
 
-# Для прямого подключения логин — просто postgres
-user_login = "postgres" 
-
-# Прямой хост вашего проекта
-db_host = f"db.{project_id}.supabase.co"
-
-# Порт меняем с 6543 на ПРЯМОЙ 5432
-DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:5432/postgres?sslmode=require"
-
+# В этой строке собрано всё: правильный логин, порт пулера и отключение prepared statements
+DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postgres?sslmode=require&prepared_statements=false"
 
 
 # --- БД ---
