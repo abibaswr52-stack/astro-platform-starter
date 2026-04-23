@@ -31,13 +31,21 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# --- ИСПРАВЛЕННЫЙ БЛОК (С КОРРЕКТНЫМ ЛОГИНОМ ДЛЯ ПУЛЕРА) ---
+# --- ПОДКЛЮЧЕНИЕ К SUPABASE ---
+import urllib.parse
+
+# Твой новый пароль (уже без спецсимволов)
 db_pass = urllib.parse.quote_plus("ibaniuz2230")
 
-# 1. Используем хост пулера (он обходит ошибку Network is unreachable)
-# 2. Логин ОБЯЗАТЕЛЬНО должен быть: postgres.aetfzeisobxgidmovrns
-# 3. Порт 6543
-DATABASE_URL = f"postgresql://postgres.aetfzeisobxgidmovrns:{db_pass}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+# ID твоего проекта: aetfzeisobxgidmovrns
+# Мы соединяем 'postgres' + '.' + 'ID', чтобы пулер тебя узнал
+user_login = "postgres.aetfzeisobxgidmovrns"
+
+# Хост пулера (AWS), который работает через IPv4
+db_host = "aws-0-eu-central-1.pooler.supabase.com"
+
+# Склеиваем всё в одну строку (порт 6543 обязателен!)
+DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
 
 
 # --- БД ---
