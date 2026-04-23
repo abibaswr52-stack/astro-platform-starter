@@ -31,14 +31,13 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# --- ИСПРАВЛЕННЫЙ БЛОК ПОДКЛЮЧЕНИЯ ---
+# --- ИСПРАВЛЕННЫЙ БЛОК (С КОРРЕКТНЫМ ЛОГИНОМ ДЛЯ ПУЛЕРА) ---
 db_pass = urllib.parse.quote_plus("ibaniuz2230")
 
-# Мы используем твой прямой адрес проекта, но порт пулера 6543
-# Это поможет прокси-серверу Supabase мгновенно узнать твой проект (Tenant)
-DB_HOST = "db.aetfzeisobxgidmovrns.supabase.co"
-
-DATABASE_URL = f"postgresql://postgres.aetfzeisobxgidmovrns:{db_pass}@{DB_HOST}:6543/postgres?sslmode=require"
+# 1. Используем хост пулера (он обходит ошибку Network is unreachable)
+# 2. Логин ОБЯЗАТЕЛЬНО должен быть: postgres.aetfzeisobxgidmovrns
+# 3. Порт 6543
+DATABASE_URL = f"postgresql://postgres.aetfzeisobxgidmovrns:{db_pass}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 
 # --- БД ---
