@@ -32,9 +32,9 @@ user_orders = {}
 BOT_STARS_BALANCE = 0
 
 # --- SUPABASE (POSTGRESQL) URL ---
-# Кодируем пароль со спецсимволами, чтобы URL был валидным
 db_pass = urllib.parse.quote_plus("iu92w*FzS$vJGs.")
-DATABASE_URL = f"postgresql://postgres:{db_pass}@db.aetfzeisobxgidmovrns.supabase.co:5432/postgres"
+# Используем порт 6543 и добавляем sslmode
+DATABASE_URL = f"postgresql://postgres:{db_pass}@db.aetfzeisobxgidmovrns.supabase.co:6543/postgres?sslmode=require"
 
 # --- БД ---
 def init_db():
