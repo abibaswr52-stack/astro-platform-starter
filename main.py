@@ -38,7 +38,7 @@ db_pass = urllib.parse.quote_plus("ibaniuz2230")
 project_id = "aetfzeisobxgidmovrns"
 
 # 2. ИСПРАВЛЕННЫЙ ХОСТ (взят из твоего скриншота выше)
-db_host = "://supabase.com"
+db_host = "aws-1-ap-southeast-1.pooler.supabase.com"
 
 # 3. СТРОКА ПОДКЛЮЧЕНИЯ (используем порт 5432, как на скрине)
 DATABASE_URL = f"postgresql://postgres.{project_id}:{db_pass}@{db_host}:5432/postgres?sslmode=require"
@@ -48,7 +48,7 @@ DATABASE_URL = f"postgresql://postgres.{project_id}:{db_pass}@{db_host}:5432/pos
 def init_db():
     # Данные ПРЯМО из твоего скриншота и сообщения
     config = {
-        "host": "://supabase.com",
+        "host": "aws-1-ap-southeast-1.pooler.supabase.com",
         "port": "5432",
         "database": "postgres",
         "user": "postgres.aetfzeisobxgidmovrns",
