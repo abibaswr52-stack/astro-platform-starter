@@ -33,13 +33,12 @@ BOT_STARS_BALANCE = 0
 
 import urllib.parse
 
-# Впишите сюда пароль, который только что создали через Reset Password
-db_pass = urllib.parse.quote_plus("ibaniuz2230") 
+db_pass = urllib.parse.quote_plus("ibaniuz2230") # Твой текущий пароль
 project_id = "aetfzeisobxgidmovrns"
 db_host = "://supabase.com"
 
-# В этой строке собрано всё: правильный логин, порт пулера и отключение prepared statements
-DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postgres?sslmode=require&prepared_statements=false"
+# Убрали проблемный параметр из строки
+DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
 
 
 # --- БД ---
