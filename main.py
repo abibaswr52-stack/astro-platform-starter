@@ -31,21 +31,21 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# --- ПОДКЛЮЧЕНИЕ К SUPABASE (SINGAPORE REGION) ---
-import urllib.parse
-
-# Твой пароль
+# --- САМЫЙ ТОЧНЫЙ ВАРЯНТ ДЛЯ ПУЛЕРА ---
 db_pass = urllib.parse.quote_plus("ibaniuz2230")
 
-# Твой логин пулера (postgres.ID_проекта)
-user_login = "postgres.aetfzeisobxgidmovrns"
+# Твой ID проекта
+project_id = "aetfzeisobxgidmovrns"
 
-# Правильный хост пулера для региона ap-southeast-1 (Singapore)
-db_host = "aws-0-ap-southeast-1.pooler.supabase.com" 
+# Логин для пулера
+user_login = f"postgres.{project_id}"
 
-# Склеиваем финальную строку (порт 6543)
-DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
+# Хост Сингапура
+db_host = "aws-0-ap-southeast-1.pooler.supabase.com"
 
+# ВАЖНО: В конце вместо /postgres попробуй указать ID проекта как имя БД
+# Некоторые конфигурации пулера требуют именно этого
+DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/{project_id}?sslmode=require"
 
 # --- БД ---
 def init_db():
