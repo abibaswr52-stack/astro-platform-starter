@@ -43,22 +43,44 @@ DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postg
 
 # --- БД ---
 def init_db():
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
+    # Данные для подключения
+    project_id = "aetfzeisobxgidmovrns"
+    db_pass = "ibaniuz2230" 
+    db_host = "://supabase.com"
 
-    # В Postgres вместо INTEGER PRIMARY KEY используем BIGINT для ID Telegram, 
-    # а для автоинкремента SERIAL
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id BIGINT PRIMARY KEY,
-            username TEXT,
-            spent INTEGER DEFAULT 0,
-            referrer_id BIGINT DEFAULT NULL,
-            ref_earned INTEGER DEFAULT 0,
-            ref_balance INTEGER DEFAULT 0,
-            purchases INTEGER DEFAULT 0
+    try:
+        # Подключаемся, передавая параметры отдельно (это самый надежный способ)
+        conn = psycopg2.connect(
+            host=db_host,
+            port="6543",
+            database="postgres",
+            user=f"postgres.{project_id}",
+            password=db_pass,
+            sslmode="require"
         )
-    ''')
+        cur = conn.cursor()
+        
+        # Создаем таблицу
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGINT PRIMARY KEY,
+                username TEXT,
+                spent INTEGER DEFAULT 0,
+                referrer_id BIGINT DEFAULT NULL,
+                ref_earned INTEGER DEFAULT 0,
+                ref_balance INTEGER DEFAULT 0,
+                purchases INTEGER DEFAULT 0
+            )
+        ''')
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("База данных успешно инициализирована!")
+
+    except Exception as e:
+        print(f"Критическая ошибка при инициализации БД: {e}")
+
 
     # Таблица заявок на вывод реф. бонусов
     cur.execute('''
