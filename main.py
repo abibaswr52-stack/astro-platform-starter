@@ -33,34 +33,36 @@ BOT_STARS_BALANCE = 0
 
 import urllib.parse
 
-db_pass = urllib.parse.quote_plus("ibaniuz2230") # Твой текущий пароль
+# 1. Твой пароль
+db_pass = urllib.parse.quote_plus("ibaniuz2230") 
 project_id = "aetfzeisobxgidmovrns"
+
+# 2. ИСПРАВЛЕННЫЙ ХОСТ (взят из твоего скриншота выше)
 db_host = "://supabase.com"
 
-# Убрали проблемный параметр из строки
-DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
+# 3. СТРОКА ПОДКЛЮЧЕНИЯ (используем порт 5432, как на скрине)
+DATABASE_URL = f"postgresql://postgres.{project_id}:{db_pass}@{db_host}:5432/postgres?sslmode=require"
 
 
 # --- БД ---
 def init_db():
-    # --- ВСТАВЬТЕ СЮДА НОВЫЙ ПАРОЛЬ ПОСЛЕ СБРОСА ---
-    new_password = "ibaniuz2230" 
-    project_id = "aetfzeisobxgidmovrns"
-
+    # Данные ПРЯМО из твоего скриншота и сообщения
     config = {
-        "host": f"db.{project_id}.supabase.co", # Используем ваш прямой ID в хосте
-        "port": "6543",
+        "host": "://supabase.com",
+        "port": "5432",
         "database": "postgres",
-        "user": f"postgres.{project_id}",
-        "password": new_password,
+        "user": "postgres.aetfzeisobxgidmovrns",
+        "password": "ibaniuz2230",
         "sslmode": "require"
     }
 
     conn = None
     try:
+        # Подключаемся по точным параметрам
         conn = psycopg2.connect(**config)
         cur = conn.cursor()
         
+        # Создаем таблицу (теперь внутри try, чтобы не было ошибки UnboundLocalError)
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id BIGINT PRIMARY KEY,
@@ -75,7 +77,7 @@ def init_db():
         
         conn.commit()
         cur.close()
-        print("✅ УСПЕХ: База данных подключена через пулер!")
+        print("✅ УРА! База данных успешно подключена и настроена!")
 
     except Exception as e:
         print(f"❌ Ошибка подключения: {e}")
