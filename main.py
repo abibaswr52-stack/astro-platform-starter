@@ -33,8 +33,9 @@ BOT_STARS_BALANCE = 0
 
 # --- SUPABASE (POSTGRESQL) URL ---
 db_pass = urllib.parse.quote_plus("ibaniuz2230")
-# Используем порт 5432 и добавляем sslmode
-DATABASE_URL = f"postgresql://postgres:{db_pass}@db.aetfzeisobxgidmovrns.supabase.co:5432/postgres?sslmode=require"
+# Используем хост пулера и порт 6543 для обхода ошибки "Network is unreachable"
+DATABASE_URL = f"postgresql://postgres.aetfzeisobxgidmovrns:{db_pass}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
 
 # --- БД ---
 def init_db():
