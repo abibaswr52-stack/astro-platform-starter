@@ -31,18 +31,19 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# Исправленный вариант
+# --- ПРЯМОЕ ПОДКЛЮЧЕНИЕ (БЕЗ ПУЛЕРА) ---
 db_pass = urllib.parse.quote_plus("ibaniuz2230")
 project_id = "aetfzeisobxgidmovrns"
 
-# Логин для пулера остается таким же
-user_login = f"postgres.{project_id}"
+# Для прямого подключения логин — просто postgres
+user_login = "postgres" 
 
-# Хост для Сингапура
-db_host = "aws-0-ap-southeast-1.pooler.supabase.com"
+# Прямой хост вашего проекта
+db_host = f"db.{project_id}.supabase.co"
 
-# ГЛАВНОЕ ИЗМЕНЕНИЕ: в конце базы данных ставим /postgres, а не ID проекта
-DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
+# Порт меняем с 6543 на ПРЯМОЙ 5432
+DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:5432/postgres?sslmode=require"
+
 
 
 # --- БД ---
