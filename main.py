@@ -46,7 +46,6 @@ DATABASE_URL = f"postgresql://postgres.{project_id}:{db_pass}@{db_host}:5432/pos
 
 # --- БД ---
 def init_db():
-    # Данные ПРЯМО из твоего скриншота и сообщения
     config = {
         "host": "aws-1-ap-southeast-1.pooler.supabase.com",
         "port": "5432",
@@ -58,11 +57,10 @@ def init_db():
 
     conn = None
     try:
-        # Подключаемся по точным параметрам
         conn = psycopg2.connect(**config)
         cur = conn.cursor()
         
-        # Создаем таблицу (теперь внутри try, чтобы не было ошибки UnboundLocalError)
+        # 1. Создаем первую таблицу
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id BIGINT PRIMARY KEY,
@@ -74,18 +72,27 @@ def init_db():
                 purchases INTEGER DEFAULT 0
             )
         ''')
+
+        # 2. ВАЖНО: Добавь сюда создание второй таблицы ПЕРЕД cur.close()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS ref_withdrawals (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                amount INTEGER,
+                status TEXT DEFAULT 'pending'
+            )
+        ''')
         
         conn.commit()
-        cur.close()
-        print("✅ УРА! База данных успешно подключена и настроена!")
+        cur.close() # Закрываем курсор только ОДИН раз в самом конце
+        print("✅ УРА! Все таблицы успешно созданы!")
 
     except Exception as e:
-        print(f"❌ Ошибка подключения: {e}")
+        print(f"❌ Ошибка: {e}")
     finally:
         if conn:
             conn.close()
-
-
+            
     # Таблица заявок на вывод реф. бонусов
     cur.execute('''
         CREATE TABLE IF NOT EXISTS ref_withdrawals (
