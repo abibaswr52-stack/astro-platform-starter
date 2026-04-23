@@ -43,24 +43,23 @@ DATABASE_URL = f"postgres://postgres.{project_id}:{db_pass}@{db_host}:6543/postg
 
 # --- БД ---
 def init_db():
-    # Данные для подключения
-    project_id = "aetfzeisobxgidmovrns"
-    db_pass = "ibaniuz2230" 
-    db_host = "://supabase.com"
+    # 1. Настройки подключения
+    config = {
+        "host": "aws-0-ap-southeast-1.pooler.supabase.com",
+        "port": "6543",
+        "database": "postgres",
+        "user": "postgres.aetfzeisobxgidmovrns",
+        "password": "ibaniuz2230", # Если меняли пароль — впишите новый
+        "sslmode": "require"
+    }
 
+    conn = None
     try:
-        # Подключаемся, передавая параметры отдельно (это самый надежный способ)
-        conn = psycopg2.connect(
-            host=db_host,
-            port="6543",
-            database="postgres",
-            user=f"postgres.{project_id}",
-            password=db_pass,
-            sslmode="require"
-        )
+        # 2. Пытаемся подключиться
+        conn = psycopg2.connect(**config)
         cur = conn.cursor()
         
-        # Создаем таблицу
+        # 3. Создаем таблицу
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id BIGINT PRIMARY KEY,
@@ -75,12 +74,13 @@ def init_db():
         
         conn.commit()
         cur.close()
-        conn.close()
-        print("База данных успешно инициализирована!")
+        print("✅ База данных успешно подключена и настроена!")
 
     except Exception as e:
-        print(f"Критическая ошибка при инициализации БД: {e}")
-
+        print(f"❌ Ошибка подключения: {e}")
+    finally:
+        if conn:
+            conn.close()
 
     # Таблица заявок на вывод реф. бонусов
     cur.execute('''
