@@ -31,11 +31,19 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# --- ПОДКЛЮЧЕНИЕ К SUPABASE ---
-db_pass = urllib.parse.quote_plus("ibaniuz2230")
-user_login = "postgres.aetfzeisobxgidmovrns"
-db_host = "aws-0-eu-central-1.pooler.supabase.com"
+# --- ПОДКЛЮЧЕНИЕ К SUPABASE (SINGAPORE REGION) ---
+import urllib.parse
 
+# Твой пароль
+db_pass = urllib.parse.quote_plus("ibaniuz2230")
+
+# Твой логин пулера (postgres.ID_проекта)
+user_login = "postgres.aetfzeisobxgidmovrns"
+
+# Правильный хост пулера для региона ap-southeast-1 (Singapore)
+db_host = "aws-0-ap-southeast-1.pooler.supabase.com" 
+
+# Склеиваем финальную строку (порт 6543)
 DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
 
 
