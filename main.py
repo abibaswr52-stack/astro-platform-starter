@@ -31,21 +31,19 @@ ADMIN_BALANCE = 0
 user_orders = {}
 BOT_STARS_BALANCE = 0
 
-# --- САМЫЙ ТОЧНЫЙ ВАРЯНТ ДЛЯ ПУЛЕРА ---
+# Исправленный вариант
 db_pass = urllib.parse.quote_plus("ibaniuz2230")
-
-# Твой ID проекта
 project_id = "aetfzeisobxgidmovrns"
 
-# Логин для пулера
+# Логин для пулера остается таким же
 user_login = f"postgres.{project_id}"
 
-# Хост Сингапура
+# Хост для Сингапура
 db_host = "aws-0-ap-southeast-1.pooler.supabase.com"
 
-# ВАЖНО: В конце вместо /postgres попробуй указать ID проекта как имя БД
-# Некоторые конфигурации пулера требуют именно этого
-DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/{project_id}?sslmode=require"
+# ГЛАВНОЕ ИЗМЕНЕНИЕ: в конце базы данных ставим /postgres, а не ID проекта
+DATABASE_URL = f"postgresql://{user_login}:{db_pass}@{db_host}:6543/postgres?sslmode=require"
+
 
 # --- БД ---
 def init_db():
