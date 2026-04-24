@@ -464,7 +464,7 @@ def query_handler(call):
     elif call.data.startswith("adm_no|"):
         target_uid = int(call.data.split("|")[1])
         bot.answer_callback_query(call.id, "❌ Заказ отклонён")
-        bot.send_message(target_uid, "❌ Ваш заказ отклонён.\nПоддержка: @yngsafar")
+        bot.send_message(target_uid, "❌ Ваш заказ отклонён.\nПоддержка: @RandomGamesUzbAdmin")
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
 # --- ШАГИ ПОКУПКИ ---
