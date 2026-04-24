@@ -369,7 +369,7 @@ def query_handler(call):
         conn.commit(); cur.close(); conn.close()
         bot.answer_callback_query(call.id, "❌ Заявка отклонена, баланс возвращён")
         bot.send_message(target_uid,
-            "❌ Заявка на вывод отклонена. Бонусы возвращены.\nПоддержка: @yngsafar")
+            "❌ Заявка на вывод отклонена. Бонусы возвращены.\nПоддержка: @RandomGamesUzbAdmin")
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
     elif call.data == "faq":
