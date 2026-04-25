@@ -30,6 +30,9 @@ ADMIN_BALANCE     = 0
 user_orders       = {}
 BOT_STARS_BALANCE = 0
 
+# Хранит message_id заявок у каждого админа: {order_key: {admin_id: message_id}}
+admin_order_msgs  = {}
+
 # --- ПОДКЛЮЧЕНИЕ К SUPABASE ---
 # Пароль передаётся как отдельный параметр — спецсимволы не нужно экранировать
 DB_CONFIG = {
@@ -468,13 +471,16 @@ def query_handler(call):
         kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{p}|{uname}"))
         kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no|{uid}"))
         target = order.get("target", "не указан")
+        order_key = f"{uid}_{p}"
+        admin_order_msgs[order_key] = {}
         for admin in [ADMIN_ID, SUPER_ADMIN_ID]:
             try:
-                bot.send_message(admin,
+                sent = bot.send_message(admin,
                     f"💵 <b>ЗАЯВКА (НАЛИЧКА)</b>\n\n"
                     f"👤 @{uname} (ID: {uid})\n"
                     f"🎯 {target}\n⭐ {c}\n💰 {p} UZS",
                     parse_mode='HTML', reply_markup=kb)
+                admin_order_msgs[order_key][admin] = sent.message_id
             except:
                 pass
 
@@ -487,13 +493,43 @@ def query_handler(call):
             "✅ <b>Ваш заказ выполнен!</b>\n\n"
             "Звёзды успешно отправлены на указанный аккаунт.\n\n"
             "Благодарим за покупку в <b>Random Stars</b>! 🌟", parse_mode='HTML')
-        bot.edit_message_reply_markup(uid, mid, reply_markup=None)
+        # Убираем кнопки у всех админов
+        order_key = f"{target_uid}_{p}"
+        msgs = admin_order_msgs.pop(order_key, {})
+        for admin, msg_id in msgs.items():
+            try:
+                bot.edit_message_reply_markup(admin, msg_id, reply_markup=None)
+            except:
+                pass
+        # Также убираем у того кто нажал (на случай если его нет в словаре)
+        try:
+            bot.edit_message_reply_markup(uid, mid, reply_markup=None)
+        except:
+            pass
 
     elif call.data.startswith("adm_no|"):
-        target_uid = int(call.data.split("|")[1])
+        parts = call.data.split("|")
+        target_uid = int(parts[1])
+        # Пытаемся найти price из callback кнопки Подтвердить в том же сообщении
         bot.answer_callback_query(call.id, "❌ Заказ отклонён")
         bot.send_message(target_uid, "❌ Ваш заказ отклонён.\nПоддержка: @RandomGamesUzbAdmin")
-        bot.edit_message_reply_markup(uid, mid, reply_markup=None)
+        # Убираем кнопки у всех админов — ищем по target_uid
+        key_to_remove = None
+        for key in list(admin_order_msgs.keys()):
+            if key.startswith(f"{target_uid}_"):
+                key_to_remove = key
+                break
+        if key_to_remove:
+            msgs = admin_order_msgs.pop(key_to_remove, {})
+            for admin, msg_id in msgs.items():
+                try:
+                    bot.edit_message_reply_markup(admin, msg_id, reply_markup=None)
+                except:
+                    pass
+        try:
+            bot.edit_message_reply_markup(uid, mid, reply_markup=None)
+        except:
+            pass
 
 # --- ШАГИ ПОКУПКИ ---
 def get_target_username(message):
@@ -601,9 +637,12 @@ def finish_order_with_target(message):
     kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{p}|{uname}"))
     kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no|{uid}"))
     caption = f"👤 @{uname} (ID: {uid})\n🎯 {target}\n⭐ {c}\n💰 {p} UZS\n💳 Карта: {card}"
+    order_key = f"{uid}_{p}"
+    admin_order_msgs[order_key] = {}
     for admin in [ADMIN_ID, SUPER_ADMIN_ID]:
         try:
-            bot.send_photo(admin, message.photo[-1].file_id, caption=caption, reply_markup=kb)
+            sent = bot.send_photo(admin, message.photo[-1].file_id, caption=caption, reply_markup=kb)
+            admin_order_msgs[order_key][admin] = sent.message_id
         except:
             pass
 
