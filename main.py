@@ -21,6 +21,7 @@ TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
+ADMIN_ID       = 1816991450
 ADMIN_ID       = 1001209009
 SUPER_ADMIN_ID = 1411441331
 
