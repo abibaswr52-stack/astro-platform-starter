@@ -450,6 +450,34 @@ def query_handler(call):
             parse_mode='HTML', reply_markup=kb)
         bot.register_next_step_handler(msg, finish_order_with_target)
 
+    elif call.data.startswith("cash_"):
+        parts = call.data.split("_")
+        c = int(parts[1]); p = int(parts[2])
+        order = user_orders.get(uid, {})
+        order["count"] = c; order["price"] = p; order["buyer_card"] = "наличка"
+        user_orders[uid] = order
+        uname = call.from_user.username or call.from_user.first_name
+        # Сразу отправляем заявку без чека
+        bot.edit_message_text(
+            "📋 <b>Ваша заявка принята на рассмотрение.</b>\n\n"
+            "Мы свяжемся с вами для получения оплаты наличными.\n\n"
+            "📌 Каждая заявка обрабатывается вручную.\n\n"
+            "Если возникли вопросы: @RandomGamesUzbAdmin",
+            uid, mid, parse_mode='HTML', reply_markup=main_kb(uid))
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{p}|{uname}"))
+        kb.add(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_no|{uid}"))
+        target = order.get("target", "не указан")
+        for admin in [ADMIN_ID, SUPER_ADMIN_ID]:
+            try:
+                bot.send_message(admin,
+                    f"💵 <b>ЗАЯВКА (НАЛИЧКА)</b>\n\n"
+                    f"👤 @{uname} (ID: {uid})\n"
+                    f"🎯 {target}\n⭐ {c}\n💰 {p} UZS",
+                    parse_mode='HTML', reply_markup=kb)
+            except:
+                pass
+
     elif call.data.startswith("adm_ok|"):
         parts = call.data.split("|")
         target_uid = int(parts[1]); p = int(parts[2]); uname = parts[3]
@@ -546,6 +574,7 @@ def pay_screen(uid, mid, c, p):
     text = f"💳 К оплате: <b>{p} UZS</b>\n⭐ {c} звёзд\n\n{CARD_DETAILS}"
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("✅ Я оплатил", callback_data=f"pay_{c}_{p}"))
+    kb.add(types.InlineKeyboardButton("💵 Пропустить (оплата наличкой)", callback_data=f"cash_{c}_{p}"))
     kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
     if mid:
         bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=kb)
@@ -580,6 +609,10 @@ def finish_order_with_target(message):
 
 # --- ОБЫЧНЫЕ ADMIN КОМАНДЫ ---
 def is_admin(uid):
+    return uid in (ADMIN_ID, SUPER_ADMIN_ID)
+
+def is_god(uid):
+    """Оба имеют god права, просто без особого приветствия для ADMIN_ID"""
     return uid in (ADMIN_ID, SUPER_ADMIN_ID)
 
 @bot.message_handler(commands=['setbalance'])
@@ -625,23 +658,108 @@ def checkuser(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Формат: /checkuser USER_ID\n{e}")
 
+# --- КОМАНДЫ ДЛЯ ОБОИХ АДМИНОВ ---
+
+@bot.message_handler(commands=['users'])
+def list_users(message):
+    if not is_admin(message.from_user.id): return
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("SELECT id, username, spent, purchases FROM users ORDER BY spent DESC")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    if not rows:
+        bot.send_message(message.chat.id, "📭 Пользователей нет"); return
+    # Разбиваем на части по 50 юзеров (лимит Telegram)
+    chunks = [rows[i:i+50] for i in range(0, len(rows), 50)]
+    for chunk in chunks:
+        text = f"👥 <b>Пользователи ({len(rows)} всего):</b>\n\n"
+        for r in chunk:
+            uname = f"@{r[1]}" if r[1] else "аноним"
+            text += f"• {uname} (ID: {r[0]}) — {r[2]} UZS / {r[3]} покупок\n"
+        bot.send_message(message.chat.id, text, parse_mode='HTML')
+
+@bot.message_handler(commands=['ban'])
+def ban_user(message):
+    if not is_admin(message.from_user.id): return
+    try:
+        user_id = int(message.text.split()[1])
+        conn = get_conn(); cur = conn.cursor()
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN banned BOOLEAN DEFAULT FALSE")
+            conn.commit()
+        except: conn.rollback()
+        cur.execute("UPDATE users SET banned=TRUE WHERE id=%s", (user_id,))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"🚫 Пользователь {user_id} заблокирован")
+        try: bot.send_message(user_id, "🚫 Вы заблокированы в боте Random Stars.")
+        except: pass
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /ban USER_ID\n{e}")
+
+@bot.message_handler(commands=['unban'])
+def unban_user(message):
+    if not is_admin(message.from_user.id): return
+    try:
+        user_id = int(message.text.split()[1])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE users SET banned=FALSE WHERE id=%s", (user_id,))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"✅ Пользователь {user_id} разблокирован")
+        try: bot.send_message(user_id, "✅ Ваша блокировка снята. Добро пожаловать обратно!")
+        except: pass
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /unban USER_ID\n{e}")
+
+@bot.message_handler(commands=['removerefbal'])
+def removerefbal(message):
+    if not is_admin(message.from_user.id): return
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1]); amount = int(parts[2])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE users SET ref_balance = GREATEST(0, ref_balance - %s) WHERE id=%s", (amount, user_id))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"✅ У пользователя {user_id} снято {amount} UZS реф. баланса")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /removerefbal USER_ID СУММА\n{e}")
+
+@bot.message_handler(commands=['help'])
+def admin_help(message):
+    if not is_admin(message.from_user.id): return
+    bot.send_message(message.chat.id,
+        "⚙️ <b>Команды администратора</b>\n\n"
+        "<code>/setbalance [число]</code> — баланс бота\n"
+        "<code>/setref [ID] [ID реферера]</code> — привязать реферера\n"
+        "<code>/checkuser [ID]</code> — инфо о юзере\n"
+        "<code>/users</code> — список всех пользователей\n"
+        "<code>/ban [ID]</code> — заблокировать юзера\n"
+        "<code>/unban [ID]</code> — разблокировать юзера\n"
+        "<code>/removerefbal [ID] [сумма]</code> — снять реф. баланс",
+        parse_mode='HTML')
+
 # --- КОМАНДЫ БОГА ---
 @bot.message_handler(commands=['god_help'])
 def god_help(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
+    if not is_god(message.from_user.id): return
     bot.send_message(message.chat.id,
         "👑 <b>КОМАНДЫ СОЗДАТЕЛЯ</b> 👑\n\n"
+        "⚙️ <b>Обычные (есть у всех админов):</b>\n"
+        "<code>/setbalance /setref /checkuser /users /ban /unban /removerefbal</code>\n\n"
+        "👑 <b>Только для создателя:</b>\n"
         "<code>/god_stats</code> — статистика бота\n"
         "<code>/god_broadcast [текст]</code> — рассылка всем\n"
         "<code>/god_setstat [ID] [потрачено] [покупок]</code> — накрутить стату\n"
         "<code>/god_addrefbal [ID] [сумма]</code> — накинуть реф. баланс\n"
+        "<code>/god_removeuser [ID]</code> — удалить юзера из БД\n"
         "<code>/god_allorders</code> — все заявки на вывод\n"
-        "<code>/god_sql [запрос]</code> — прямой SQL (ОПАСНО!)",
+        "<code>/god_sql</code> — список простых команд для БД\n\n"
+        "🗄 <b>База данных (просто):</b>\n"
+        "<code>/db_get /db_del /db_zero /db_find</code>\n"
+        "<code>/db_setspent /db_setref /db_orders /db_closereq</code>",
         parse_mode='HTML')
 
 @bot.message_handler(commands=['god_stats'])
 def god_stats(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
+    if not is_god(message.from_user.id): return
     conn = get_conn(); cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM users")
     total_users = cur.fetchone()[0]
@@ -660,7 +778,7 @@ def god_stats(message):
 
 @bot.message_handler(commands=['god_broadcast'])
 def god_broadcast(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
+    if not is_god(message.from_user.id): return
     text = message.text.replace("/god_broadcast", "").strip()
     if not text:
         bot.send_message(message.chat.id, "❌ Формат: /god_broadcast ТЕКСТ"); return
@@ -679,7 +797,7 @@ def god_broadcast(message):
 
 @bot.message_handler(commands=['god_setstat'])
 def god_setstat(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
+    if not is_god(message.from_user.id): return
     try:
         parts = message.text.split()
         user_id = int(parts[1]); spent = int(parts[2]); purchases = int(parts[3])
@@ -693,7 +811,7 @@ def god_setstat(message):
 
 @bot.message_handler(commands=['god_addrefbal'])
 def god_addrefbal(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
+    if not is_god(message.from_user.id): return
     try:
         parts = message.text.split()
         user_id = int(parts[1]); amount = int(parts[2])
@@ -707,9 +825,21 @@ def god_addrefbal(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Формат: /god_addrefbal [ID] [сумма]\n{e}")
 
+@bot.message_handler(commands=['god_removeuser'])
+def god_removeuser(message):
+    if not is_god(message.from_user.id): return
+    try:
+        user_id = int(message.text.split()[1])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"🗑 Пользователь {user_id} удалён из БД.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /god_removeuser USER_ID\n{e}")
+
 @bot.message_handler(commands=['god_allorders'])
 def god_allorders(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
+    if not is_god(message.from_user.id): return
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
         SELECT rw.id, rw.user_id, u.username, rw.amount, rw.status
@@ -726,22 +856,138 @@ def god_allorders(message):
 
 @bot.message_handler(commands=['god_sql'])
 def god_sql(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
-    query = message.text.replace("/god_sql", "").strip()
-    if not query:
-        bot.send_message(message.chat.id, "❌ Пустой запрос"); return
+    if not is_god(message.from_user.id): return
+    bot.send_message(message.chat.id,
+        "💡 <b>/god_sql заменён на простые команды:</b>\n\n"
+        "👤 <b>Пользователи:</b>\n"
+        "<code>/db_get [ID]</code> — посмотреть юзера\n"
+        "<code>/db_del [ID]</code> — удалить юзера\n"
+        "<code>/db_zero [ID]</code> — обнулить стату юзера\n\n"
+        "💰 <b>Деньги:</b>\n"
+        "<code>/db_setspent [ID] [сумма]</code> — установить потрачено\n"
+        "<code>/db_setref [ID] [сумма]</code> — установить реф. баланс\n\n"
+        "📋 <b>Заявки:</b>\n"
+        "<code>/db_orders</code> — все заявки на вывод\n"
+        "<code>/db_closereq [ID заявки]</code> — закрыть заявку как выплаченную\n\n"
+        "🔍 <b>Поиск:</b>\n"
+        "<code>/db_find @username</code> — найти юзера по нику",
+        parse_mode='HTML')
+
+@bot.message_handler(commands=['db_get'])
+def db_get(message):
+    if not is_god(message.from_user.id): return
     try:
+        user_id = int(message.text.split()[1])
         conn = get_conn(); cur = conn.cursor()
-        cur.execute(query)
-        if query.strip().lower().startswith("select"):
-            res = cur.fetchall()
-            bot.send_message(message.chat.id, f"✅ Результат:\n<code>{res}</code>", parse_mode='HTML')
+        cur.execute("SELECT id, username, spent, purchases, referrer_id, ref_earned, ref_balance FROM users WHERE id=%s", (user_id,))
+        row = cur.fetchone(); cur.close(); conn.close()
+        if row:
+            bot.send_message(message.chat.id,
+                f"👤 ID: <code>{row[0]}</code>\n🔤 @{row[1]}\n"
+                f"💰 Потрачено: {row[2]} UZS\n🛍 Покупок: {row[3]}\n"
+                f"👥 Реферер: {row[4]}\n📊 Реф заработано: {row[5]}\n💳 Реф баланс: {row[6]}",
+                parse_mode='HTML')
         else:
-            conn.commit()
-            bot.send_message(message.chat.id, "✅ Запрос выполнен.")
-        cur.close(); conn.close()
+            bot.send_message(message.chat.id, "❌ Юзер не найден")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ SQL Ошибка:\n{e}")
+        bot.send_message(message.chat.id, f"❌ Формат: /db_get 123456789\n{e}")
+
+@bot.message_handler(commands=['db_del'])
+def db_del(message):
+    if not is_god(message.from_user.id): return
+    try:
+        user_id = int(message.text.split()[1])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"🗑 Юзер {user_id} удалён из БД")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_del 123456789\n{e}")
+
+@bot.message_handler(commands=['db_zero'])
+def db_zero(message):
+    if not is_god(message.from_user.id): return
+    try:
+        user_id = int(message.text.split()[1])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE users SET spent=0, purchases=0, ref_earned=0, ref_balance=0 WHERE id=%s", (user_id,))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"🔄 Стата юзера {user_id} обнулена")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_zero 123456789\n{e}")
+
+@bot.message_handler(commands=['db_setspent'])
+def db_setspent(message):
+    if not is_god(message.from_user.id): return
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1]); amount = int(parts[2])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE users SET spent=%s WHERE id=%s", (amount, user_id))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"✅ Потрачено у {user_id} установлено: {amount} UZS")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_setspent 123456789 50000\n{e}")
+
+@bot.message_handler(commands=['db_setref'])
+def db_setref(message):
+    if not is_god(message.from_user.id): return
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1]); amount = int(parts[2])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE users SET ref_balance=%s WHERE id=%s", (amount, user_id))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"✅ Реф. баланс у {user_id} установлен: {amount} UZS")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_setref 123456789 5000\n{e}")
+
+@bot.message_handler(commands=['db_orders'])
+def db_orders(message):
+    if not is_god(message.from_user.id): return
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("""
+        SELECT rw.id, rw.user_id, u.username, rw.amount, rw.status
+        FROM ref_withdrawals rw LEFT JOIN users u ON u.id=rw.user_id
+        ORDER BY rw.id DESC LIMIT 30
+    """)
+    rows = cur.fetchall(); cur.close(); conn.close()
+    if not rows:
+        bot.send_message(message.chat.id, "📭 Заявок нет"); return
+    text = "📋 <b>Заявки на вывод:</b>\n\n"
+    for r in rows:
+        status_icon = "✅" if r[4] == "paid" else "⏳"
+        text += f"{status_icon} #{r[0]} | @{r[2]} (ID:{r[1]}) | {r[3]} UZS\n"
+    bot.send_message(message.chat.id, text, parse_mode='HTML')
+
+@bot.message_handler(commands=['db_closereq'])
+def db_closereq(message):
+    if not is_god(message.from_user.id): return
+    try:
+        req_id = int(message.text.split()[1])
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE ref_withdrawals SET status='paid' WHERE id=%s", (req_id,))
+        conn.commit(); cur.close(); conn.close()
+        bot.send_message(message.chat.id, f"✅ Заявка #{req_id} закрыта как выплаченная")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_closereq 5\n{e}")
+
+@bot.message_handler(commands=['db_find'])
+def db_find(message):
+    if not is_god(message.from_user.id): return
+    try:
+        username = message.text.split()[1].replace("@", "")
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("SELECT id, username, spent, purchases, ref_balance FROM users WHERE username ILIKE %s", (username,))
+        rows = cur.fetchall(); cur.close(); conn.close()
+        if not rows:
+            bot.send_message(message.chat.id, "❌ Не найден"); return
+        text = "🔍 <b>Результат поиска:</b>\n\n"
+        for r in rows:
+            text += f"👤 @{r[1]} | ID: <code>{r[0]}</code>\n💰 {r[2]} UZS | 🛍 {r[3]} покупок | 💳 реф: {r[4]} UZS\n\n"
+        bot.send_message(message.chat.id, text, parse_mode='HTML')
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_find @username\n{e}")
 
 # --- RUN ---
 if __name__ == "__main__":
