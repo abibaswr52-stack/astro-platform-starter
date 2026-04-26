@@ -459,7 +459,7 @@ def query_handler(call):
         conn.commit(); cur.close(); conn.close()
         bot.answer_callback_query(call.id, "❌ Заявка отклонена, баланс возвращён")
         bot.send_message(target_uid,
-            "❌ Заявка на вывод отклонена. Бонусы возвращены.\nПоддержка: @RandomGamesUzbAdmin")
+            "❌ Заявка на вывод отклонена. Бонусы возвращены.\nПоддержка: @RandomStarsUzb")
         bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
     elif call.data == "faq":
@@ -473,8 +473,8 @@ def query_handler(call):
             "2. <b>Будет ли работать бот всегда?</b>\n"
             "Бот будет работать до тех пор, пока на балансе будут звёзды. А когда их не останется — бот предупредит всех.\n\n"
             "3. <b>Звёзды не пришли — что делать?</b>\n"
-            "Пишите @RandomGamesUzbAdmin\n\n"
-            "💬 <b>Прямая поддержка:</b> @RandomGamesUzbAdmin",
+            "Пишите @RandomStarsUzb\n\n"
+            "💬 <b>Прямая поддержка:</b> @RandomStarsUzb",
             uid, mid, parse_mode='HTML', reply_markup=kb)
 
     elif call.data == "delete":
@@ -552,7 +552,7 @@ def query_handler(call):
             "📋 <b>Ваша заявка принята на рассмотрение.</b>\n\n"
             "Мы свяжемся с вами для получения оплаты наличными.\n\n"
             "📌 Каждая заявка обрабатывается вручную.\n\n"
-            "Если возникли вопросы: @RandomGamesUzbAdmin",
+            "Если возникли вопросы: @RandomStarsUzb",
             uid, mid, parse_mode='HTML', reply_markup=main_kb(uid))
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{p}|{uname}"))
@@ -599,7 +599,7 @@ def query_handler(call):
         target_uid = int(parts[1])
         # Пытаемся найти price из callback кнопки Подтвердить в том же сообщении
         bot.answer_callback_query(call.id, "❌ Заказ отклонён")
-        bot.send_message(target_uid, "❌ Ваш заказ отклонён.\nПоддержка: @RandomGamesUzbAdmin")
+        bot.send_message(target_uid, "❌ Ваш заказ отклонён.\nПоддержка: @RandomStarsUzb")
         # Убираем кнопки у всех админов — ищем по target_uid
         key_to_remove = None
         for key in list(admin_order_msgs.keys()):
@@ -718,7 +718,7 @@ def finish_order_with_target(message):
         "📋 <b>Ваша заявка принята на рассмотрение.</b>\n\n"
         "Мы проверим поступление оплаты и в течение нескольких часов отправим звёзды.\n\n"
         "📌 Каждая заявка обрабатывается вручную.\n\n"
-        "Если возникли вопросы: @RandomGamesUzbAdmin",
+        "Если возникли вопросы: @RandomStarsUzb",
         parse_mode='HTML', reply_markup=main_kb(uid))
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{p}|{uname}"))
