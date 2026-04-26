@@ -21,7 +21,6 @@ TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
-ADMIN_ID       = 1816991450
 ADMIN_ID       = 1001209009
 SUPER_ADMIN_ID = 1411441331
 
@@ -34,8 +33,10 @@ BOT_STARS_BALANCE = 0
 # Хранит message_id заявок у каждого админа: {order_key: {admin_id: message_id}}
 admin_order_msgs  = {}
 
+# Кэш админов — загружается из БД при старте
+admin_ids_cache = set()
+
 # --- ПОДКЛЮЧЕНИЕ К SUPABASE ---
-# Пароль передаётся как отдельный параметр — спецсимволы не нужно экранировать
 DB_CONFIG = {
     "host":     "aws-1-ap-southeast-1.pooler.supabase.com",
     "port":     "5432",
@@ -47,6 +48,81 @@ DB_CONFIG = {
 
 def get_conn():
     return psycopg2.connect(**DB_CONFIG)
+
+# --- ИНИЦИАЛИЗАЦИЯ БД ---
+def init_db():
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id          BIGINT PRIMARY KEY,
+                username    TEXT,
+                spent       INTEGER DEFAULT 0,
+                referrer_id BIGINT  DEFAULT NULL,
+                ref_earned  INTEGER DEFAULT 0,
+                ref_balance INTEGER DEFAULT 0,
+                purchases   INTEGER DEFAULT 0
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS ref_withdrawals (
+                id      SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                amount  INTEGER,
+                status  TEXT DEFAULT 'pending'
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS admins (
+                id       BIGINT PRIMARY KEY,
+                username TEXT,
+                added_by BIGINT
+            )
+        ''')
+        # Вставляем базовых админов если их нет
+        for aid in [ADMIN_ID, SUPER_ADMIN_ID, 1816991450]:
+            cur.execute("INSERT INTO admins (id, added_by) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+                        (aid, SUPER_ADMIN_ID))
+            cur.execute("INSERT INTO users (id, username) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+                        (aid, "admin"))
+        conn.commit()
+        print("✅ Таблицы созданы успешно!")
+    except Exception as e:
+        print(f"❌ Ошибка init_db: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+def load_admins():
+    """Загружает список админов из БД в кэш"""
+    global admin_ids_cache
+    try:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("SELECT id FROM admins")
+        rows = cur.fetchall()
+        admin_ids_cache = {r[0] for r in rows}
+        # Супер-админы всегда в кэше
+        admin_ids_cache.add(ADMIN_ID)
+        admin_ids_cache.add(SUPER_ADMIN_ID)
+        cur.close(); conn.close()
+    except Exception as e:
+        print(f"❌ load_admins: {e}")
+        admin_ids_cache = {ADMIN_ID, SUPER_ADMIN_ID, 1816991450}
+
+init_db()
+load_admins()
+
+def get_all_admins():
+    """Возвращает актуальный список всех admin_id"""
+    return admin_ids_cache
+
+def is_admin(uid):
+    return uid in get_all_admins()
+
+def is_god(uid):
+    return uid in get_all_admins()
 
 # --- ИНИЦИАЛИЗАЦИЯ БД (исправлено: всё в одном try/finally) ---
 def init_db():
@@ -176,6 +252,10 @@ def welcome(message):
     uid = message.from_user.id
 
     if uid == SUPER_ADMIN_ID:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("INSERT INTO users (id, username) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username",
+                    (uid, message.from_user.username or ""))
+        conn.commit(); cur.close(); conn.close()
         bot.send_message(uid,
             "👑 <b>ПРИВЕТСТВУЮ, СОЗДАТЕЛЬ! БОГ ЭТОГО БОТА ВЕРНУЛСЯ!</b> 👑\n\n"
             "Ваша власть здесь абсолютна. Базы данных подчиняются вашему слову.\n\n"
@@ -189,6 +269,12 @@ def welcome(message):
         return
 
     args = message.text.split()
+    # Всегда записываем юзера в БД
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("INSERT INTO users (id, username) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username",
+                (uid, message.from_user.username or ""))
+    conn.commit(); cur.close(); conn.close()
+
     if len(args) > 1:
         try:
             ref_id = int(args[1].replace("ref_", ""))
@@ -347,7 +433,7 @@ def query_handler(call):
         adm_kb.add(
             types.InlineKeyboardButton("✅ Выплачено", callback_data=f"ref_paid|{uid}"),
             types.InlineKeyboardButton("❌ Отклонить", callback_data=f"ref_reject|{uid}|{amount}"))
-        for admin in [ADMIN_ID, SUPER_ADMIN_ID]:
+        for admin in get_all_admins():
             try:
                 bot.send_message(admin,
                     f"💸 <b>Заявка на вывод реф. бонусов</b>\n\n"
@@ -474,7 +560,7 @@ def query_handler(call):
         target = order.get("target", "не указан")
         order_key = f"{uid}_{p}"
         admin_order_msgs[order_key] = {}
-        for admin in [ADMIN_ID, SUPER_ADMIN_ID]:
+        for admin in get_all_admins():
             try:
                 sent = bot.send_message(admin,
                     f"💵 <b>ЗАЯВКА (НАЛИЧКА)</b>\n\n"
@@ -640,7 +726,7 @@ def finish_order_with_target(message):
     caption = f"👤 @{uname} (ID: {uid})\n🎯 {target}\n⭐ {c}\n💰 {p} UZS\n💳 Карта: {card}"
     order_key = f"{uid}_{p}"
     admin_order_msgs[order_key] = {}
-    for admin in [ADMIN_ID, SUPER_ADMIN_ID]:
+    for admin in get_all_admins():
         try:
             sent = bot.send_photo(admin, message.photo[-1].file_id, caption=caption, reply_markup=kb)
             admin_order_msgs[order_key][admin] = sent.message_id
@@ -648,12 +734,6 @@ def finish_order_with_target(message):
             pass
 
 # --- ОБЫЧНЫЕ ADMIN КОМАНДЫ ---
-def is_admin(uid):
-    return uid in (ADMIN_ID, SUPER_ADMIN_ID)
-
-def is_god(uid):
-    """Оба имеют god права, просто без особого приветствия для ADMIN_ID"""
-    return uid in (ADMIN_ID, SUPER_ADMIN_ID)
 
 @bot.message_handler(commands=['setbalance'])
 def setbalance(message):
@@ -773,7 +853,10 @@ def admin_help(message):
         "<code>/users</code> — список всех пользователей\n"
         "<code>/ban [ID]</code> — заблокировать юзера\n"
         "<code>/unban [ID]</code> — разблокировать юзера\n"
-        "<code>/removerefbal [ID] [сумма]</code> — снять реф. баланс",
+        "<code>/removerefbal [ID] [сумма]</code> — снять реф. баланс\n"
+        "<code>/db_admins</code> — список всех админов\n"
+        "<code>/db_addadmin [ID] [@username]</code> — добавить админа\n"
+        "<code>/db_removeadmin [ID]</code> — удалить админа",
         parse_mode='HTML')
 
 # --- КОМАНДЫ БОГА ---
@@ -794,7 +877,11 @@ def god_help(message):
         "<code>/god_sql</code> — список простых команд для БД\n\n"
         "🗄 <b>База данных (просто):</b>\n"
         "<code>/db_get /db_del /db_zero /db_find</code>\n"
-        "<code>/db_setspent /db_setref /db_orders /db_closereq</code>",
+        "<code>/db_setspent /db_setref /db_orders /db_closereq</code>\n\n"
+        "👮 <b>Управление админами:</b>\n"
+        "<code>/db_addadmin [ID] [@username]</code> — добавить админа\n"
+        "<code>/db_removeadmin [ID]</code> — удалить админа\n"
+        "<code>/db_admins</code> — список всех админов",
         parse_mode='HTML')
 
 @bot.message_handler(commands=['god_stats'])
@@ -1028,6 +1115,55 @@ def db_find(message):
         bot.send_message(message.chat.id, text, parse_mode='HTML')
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Формат: /db_find @username\n{e}")
+
+@bot.message_handler(commands=['db_addadmin'])
+def db_addadmin(message):
+    if not is_god(message.from_user.id): return
+    try:
+        new_id = int(message.text.split()[1])
+        uname = message.text.split()[2].replace("@", "") if len(message.text.split()) > 2 else ""
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("INSERT INTO admins (id, username, added_by) VALUES (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username",
+                    (new_id, uname, message.from_user.id))
+        cur.execute("INSERT INTO users (id, username) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+                    (new_id, uname))
+        conn.commit(); cur.close(); conn.close()
+        load_admins()  # Обновляем кэш
+        bot.send_message(message.chat.id, f"✅ Админ <code>{new_id}</code> (@{uname}) добавлен!", parse_mode='HTML')
+        try: bot.send_message(new_id, "👮 Вам выданы права администратора бота <b>Random Stars</b>!\n\nИспользуйте /help для просмотра команд.", parse_mode='HTML')
+        except: pass
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_addadmin 123456789 @username\n{e}")
+
+@bot.message_handler(commands=['db_removeadmin'])
+def db_removeadmin(message):
+    if not is_god(message.from_user.id): return
+    try:
+        rem_id = int(message.text.split()[1])
+        if rem_id in (ADMIN_ID, SUPER_ADMIN_ID):
+            bot.send_message(message.chat.id, "❌ Нельзя удалить основных администраторов"); return
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("DELETE FROM admins WHERE id=%s", (rem_id,))
+        conn.commit(); cur.close(); conn.close()
+        load_admins()  # Обновляем кэш
+        bot.send_message(message.chat.id, f"✅ Админ {rem_id} удалён")
+        try: bot.send_message(rem_id, "❌ Ваши права администратора бота <b>Random Stars</b> были отозваны.", parse_mode='HTML')
+        except: pass
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Формат: /db_removeadmin 123456789\n{e}")
+
+@bot.message_handler(commands=['db_admins'])
+def db_admins(message):
+    if not is_god(message.from_user.id): return
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("SELECT id, username, added_by FROM admins ORDER BY id")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    text = "👮 <b>Список администраторов:</b>\n\n"
+    for r in rows:
+        uname = f"@{r[1]}" if r[1] else "—"
+        god_mark = " 👑" if r[0] in (ADMIN_ID, SUPER_ADMIN_ID) else ""
+        text += f"• {uname} | ID: <code>{r[0]}</code>{god_mark}\n"
+    bot.send_message(message.chat.id, text, parse_mode='HTML')
 
 # --- RUN ---
 if __name__ == "__main__":
