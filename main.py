@@ -121,9 +121,6 @@ def get_all_admins():
 def is_admin(uid):
     return uid in get_all_admins()
 
-def is_god(uid):
-    return uid in get_all_admins()
-
 # --- ИНИЦИАЛИЗАЦИЯ БД (исправлено: всё в одном try/finally) ---
 def init_db():
     conn = get_conn()
@@ -346,7 +343,7 @@ def query_handler(call):
 
     elif call.data == "top":
         conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT username, spent FROM users ORDER BY spent DESC LIMIT 10")
+        cur.execute("SELECT username, spent FROM users WHERE spent > 0 ORDER BY spent DESC LIMIT 10")
         res = cur.fetchall()
         cur.close(); conn.close()
         text = "<b>🏆 Топ покупателей:</b>\n\n"
@@ -862,7 +859,7 @@ def admin_help(message):
 # --- КОМАНДЫ БОГА ---
 @bot.message_handler(commands=['god_help'])
 def god_help(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     bot.send_message(message.chat.id,
         "👑 <b>КОМАНДЫ СОЗДАТЕЛЯ</b> 👑\n\n"
         "⚙️ <b>Обычные (есть у всех админов):</b>\n"
@@ -886,7 +883,7 @@ def god_help(message):
 
 @bot.message_handler(commands=['god_stats'])
 def god_stats(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     conn = get_conn(); cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM users")
     total_users = cur.fetchone()[0]
@@ -905,7 +902,7 @@ def god_stats(message):
 
 @bot.message_handler(commands=['god_broadcast'])
 def god_broadcast(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     text = message.text.replace("/god_broadcast", "").strip()
     if not text:
         bot.send_message(message.chat.id, "❌ Формат: /god_broadcast ТЕКСТ"); return
@@ -924,7 +921,7 @@ def god_broadcast(message):
 
 @bot.message_handler(commands=['god_setstat'])
 def god_setstat(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         parts = message.text.split()
         user_id = int(parts[1]); spent = int(parts[2]); purchases = int(parts[3])
@@ -938,7 +935,7 @@ def god_setstat(message):
 
 @bot.message_handler(commands=['god_addrefbal'])
 def god_addrefbal(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         parts = message.text.split()
         user_id = int(parts[1]); amount = int(parts[2])
@@ -954,7 +951,7 @@ def god_addrefbal(message):
 
 @bot.message_handler(commands=['god_removeuser'])
 def god_removeuser(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         user_id = int(message.text.split()[1])
         conn = get_conn(); cur = conn.cursor()
@@ -966,7 +963,7 @@ def god_removeuser(message):
 
 @bot.message_handler(commands=['god_allorders'])
 def god_allorders(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
         SELECT rw.id, rw.user_id, u.username, rw.amount, rw.status
@@ -983,7 +980,7 @@ def god_allorders(message):
 
 @bot.message_handler(commands=['god_sql'])
 def god_sql(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     bot.send_message(message.chat.id,
         "💡 <b>/god_sql заменён на простые команды:</b>\n\n"
         "👤 <b>Пользователи:</b>\n"
@@ -1002,7 +999,7 @@ def god_sql(message):
 
 @bot.message_handler(commands=['db_get'])
 def db_get(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         user_id = int(message.text.split()[1])
         conn = get_conn(); cur = conn.cursor()
@@ -1021,7 +1018,7 @@ def db_get(message):
 
 @bot.message_handler(commands=['db_del'])
 def db_del(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         user_id = int(message.text.split()[1])
         conn = get_conn(); cur = conn.cursor()
@@ -1033,7 +1030,7 @@ def db_del(message):
 
 @bot.message_handler(commands=['db_zero'])
 def db_zero(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         user_id = int(message.text.split()[1])
         conn = get_conn(); cur = conn.cursor()
@@ -1045,7 +1042,7 @@ def db_zero(message):
 
 @bot.message_handler(commands=['db_setspent'])
 def db_setspent(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         parts = message.text.split()
         user_id = int(parts[1]); amount = int(parts[2])
@@ -1058,7 +1055,7 @@ def db_setspent(message):
 
 @bot.message_handler(commands=['db_setref'])
 def db_setref(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         parts = message.text.split()
         user_id = int(parts[1]); amount = int(parts[2])
@@ -1071,7 +1068,7 @@ def db_setref(message):
 
 @bot.message_handler(commands=['db_orders'])
 def db_orders(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
         SELECT rw.id, rw.user_id, u.username, rw.amount, rw.status
@@ -1089,7 +1086,7 @@ def db_orders(message):
 
 @bot.message_handler(commands=['db_closereq'])
 def db_closereq(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         req_id = int(message.text.split()[1])
         conn = get_conn(); cur = conn.cursor()
@@ -1101,7 +1098,7 @@ def db_closereq(message):
 
 @bot.message_handler(commands=['db_find'])
 def db_find(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         username = message.text.split()[1].replace("@", "")
         conn = get_conn(); cur = conn.cursor()
@@ -1118,7 +1115,7 @@ def db_find(message):
 
 @bot.message_handler(commands=['db_addadmin'])
 def db_addadmin(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         new_id = int(message.text.split()[1])
         uname = message.text.split()[2].replace("@", "") if len(message.text.split()) > 2 else ""
@@ -1137,7 +1134,7 @@ def db_addadmin(message):
 
 @bot.message_handler(commands=['db_removeadmin'])
 def db_removeadmin(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     try:
         rem_id = int(message.text.split()[1])
         if rem_id in (ADMIN_ID, SUPER_ADMIN_ID):
@@ -1154,7 +1151,7 @@ def db_removeadmin(message):
 
 @bot.message_handler(commands=['db_admins'])
 def db_admins(message):
-    if not is_god(message.from_user.id): return
+    if not is_admin(message.from_user.id): return
     conn = get_conn(); cur = conn.cursor()
     cur.execute("SELECT id, username, added_by FROM admins ORDER BY id")
     rows = cur.fetchall(); cur.close(); conn.close()
