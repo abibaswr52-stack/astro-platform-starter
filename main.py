@@ -2,14 +2,149 @@ import os
 import telebot
 import psycopg2
 from telebot import types
-from flask import Flask
+from flask import Flask, request, jsonify
 from threading import Thread
 
-# --- СЕРВЕР ---
+# --- СЕРВЕР + API ДЛЯ MINI APP ---
 app = Flask('')
+
+@app.after_request
+def add_cors(response):
+    response.headers['Access-Control-Allow-Origin']  = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def options(path): return '', 200
+
 @app.route('/')
 def home():
     return "Shop Status: OK"
+
+@app.route('/api/user/<int:user_id>')
+def api_user(user_id):
+    try:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("SELECT username, spent, purchases, ref_earned, ref_balance FROM users WHERE id=%s", (user_id,))
+        row = cur.fetchone()
+        cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id=%s", (user_id,))
+        invited = cur.fetchone()[0]
+        cur.execute("SELECT COALESCE(SUM(spent),0) FROM users WHERE referrer_id=%s", (user_id,))
+        total = cur.fetchone()[0]
+        cur.close(); conn.close()
+        if row:
+            return jsonify({"username":row[0],"spent":row[1],"purchases":row[2],
+                            "ref_earned":row[3],"ref_balance":row[4],
+                            "invited":invited,"total":int(total)})
+        return jsonify({"spent":0,"purchases":0,"ref_earned":0,"ref_balance":0,"invited":0,"total":0})
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
+
+@app.route('/api/top')
+def api_top():
+    try:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("SELECT username, spent FROM users WHERE spent > 0 ORDER BY spent DESC LIMIT 10")
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return jsonify([{"username":r[0],"spent":r[1]} for r in rows])
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
+
+@app.route('/api/balance')
+def api_balance():
+    return jsonify({"balance": BOT_STARS_BALANCE})
+
+@app.route('/api/order', methods=['POST'])
+def api_order():
+    try:
+        data      = request.json
+        uid       = int(data['user_id'])
+        uname     = data.get('username','')
+        stars     = int(data['stars'])
+        price     = int(data['price'])
+        recipient = data.get('recipient','')
+        card      = data.get('card','не указаны')
+        pay_type  = data.get('pay_type','transfer')
+
+        if BOT_STARS_BALANCE > 0 and stars > BOT_STARS_BALANCE:
+            return jsonify({"ok":False,"error":f"На балансе только {BOT_STARS_BALANCE} ⭐"})
+
+        user_orders[uid] = {"count":stars,"price":price,"target":recipient,"buyer_card":card}
+
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{price}|{uname}"))
+        kb.add(types.InlineKeyboardButton("❌ Отклонить",   callback_data=f"adm_no|{uid}"))
+        order_key = f"{uid}_{price}"
+        admin_order_msgs[order_key] = {}
+
+        if pay_type == 'cash':
+            for admin in get_all_admins():
+                try:
+                    sent = bot.send_message(admin,
+                        f"💵 <b>MINI APP — НАЛИЧКА</b>\n\n"
+                        f"👤 @{uname} (ID: {uid})\n🎯 {recipient}\n⭐ {stars}\n💰 {price} UZS\n💳 {card}",
+                        parse_mode='HTML', reply_markup=kb)
+                    admin_order_msgs[order_key][admin] = sent.message_id
+                except: pass
+            try:
+                bot.send_message(uid,
+                    "📋 <b>Заявка принята!</b>\n\nМы свяжемся с вами для оплаты наличными.\nПоддержка: @RandomStarsUzb",
+                    parse_mode='HTML')
+            except: pass
+        else:
+            try:
+                bot.send_message(uid,
+                    f"⭐ <b>{stars} звёзд — {price} UZS</b>\n\n"
+                    f"🎯 Получатель: <b>{recipient}</b>\n\n"
+                    f"💳 Оплатите на карту:\n<b>9860 1001 2780 5412\nSafarbek K.</b>\n\n"
+                    f"📎 После оплаты отправьте <b>фото чека</b> сюда в бот:",
+                    parse_mode='HTML')
+                bot.register_next_step_handler_by_chat_id(uid, finish_order_with_target)
+            except: pass
+
+        return jsonify({"ok":True})
+    except Exception as e:
+        return jsonify({"ok":False,"error":str(e)}), 500
+
+@app.route('/api/withdraw', methods=['POST'])
+def api_withdraw():
+    try:
+        data       = request.json
+        uid        = int(data['user_id'])
+        uname      = data.get('username','')
+        requisites = data.get('requisites','не указаны')
+
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("SELECT ref_balance FROM users WHERE id=%s", (uid,))
+        row = cur.fetchone()
+        balance = row[0] if row else 0
+        if balance < 10000:
+            cur.close(); conn.close()
+            return jsonify({"ok":False,"error":"Недостаточно бонусов"})
+
+        cur.execute("UPDATE users SET ref_balance=0 WHERE id=%s", (uid,))
+        cur.execute("INSERT INTO ref_withdrawals (user_id,amount) VALUES (%s,%s)", (uid, balance))
+        conn.commit(); cur.close(); conn.close()
+
+        adm_kb = types.InlineKeyboardMarkup()
+        adm_kb.add(
+            types.InlineKeyboardButton("✅ Выплачено",  callback_data=f"ref_paid|{uid}"),
+            types.InlineKeyboardButton("❌ Отклонить", callback_data=f"ref_reject|{uid}|{balance}"))
+        for admin in get_all_admins():
+            try:
+                bot.send_message(admin,
+                    f"💸 <b>Вывод (Mini App)</b>\n\n👤 @{uname} (ID:{uid})\n💰 {balance} UZS\n💳 {requisites}",
+                    parse_mode='HTML', reply_markup=adm_kb)
+            except: pass
+        try:
+            bot.send_message(uid,
+                f"✅ <b>Заявка на вывод принята!</b>\n\n💰 {balance} UZS\n💳 {requisites}\n\nАдминистратор обработает в ближайшее время.",
+                parse_mode='HTML')
+        except: pass
+        return jsonify({"ok":True})
+    except Exception as e:
+        return jsonify({"ok":False,"error":str(e)}), 500
 
 def run():
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
@@ -212,8 +347,14 @@ def update_spent(uid, uname, amount):
         conn.close()
 
 # --- КЛАВИАТУРЫ ---
+MINIAPP_URL = 'https://astro-platform-starter-rose-five.vercel.app'
+
 def main_kb(uid):
     markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.row(types.InlineKeyboardButton(
+        "🌟 Открыть магазин (Mini App)",
+        web_app=types.WebAppInfo(url=MINIAPP_URL)
+    ))
     markup.add(
         types.InlineKeyboardButton("🛒 Магазин",  callback_data="shop"),
         types.InlineKeyboardButton("👤 Профиль",  callback_data="profile")
@@ -1161,6 +1302,101 @@ def db_admins(message):
         god_mark = " 👑" if r[0] in (ADMIN_ID, SUPER_ADMIN_ID) else ""
         text += f"• {uname} | ID: <code>{r[0]}</code>{god_mark}\n"
     bot.send_message(message.chat.id, text, parse_mode='HTML')
+
+# --- ОБРАБОТЧИК ДАННЫХ ИЗ MINI APP ---
+@bot.message_handler(content_types=['web_app_data'])
+def handle_miniapp_data(message):
+    import json
+    uid   = message.from_user.id
+    uname = message.from_user.username or message.from_user.first_name
+    try:
+        data = json.loads(message.web_app_data.data)
+        action = data.get('action')
+
+        if action == 'buy':
+            stars     = int(data['stars'])
+            price     = int(data['price'])
+            recipient = data.get('recipient', 'не указан')
+            card      = data.get('card', 'не указана')
+            pay_type  = data.get('pay_type', 'transfer')
+
+            # Проверка баланса
+            if BOT_STARS_BALANCE > 0 and stars > BOT_STARS_BALANCE:
+                bot.send_message(uid, f"⚠️ На балансе только {BOT_STARS_BALANCE} ⭐. Выберите меньше.")
+                return
+
+            user_orders[uid] = {"count": stars, "price": price, "target": recipient, "buyer_card": card}
+
+            kb = types.InlineKeyboardMarkup()
+            kb.add(types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_ok|{uid}|{price}|{uname}"))
+            kb.add(types.InlineKeyboardButton("❌ Отклонить",   callback_data=f"adm_no|{uid}"))
+            order_key = f"{uid}_{price}"
+            admin_order_msgs[order_key] = {}
+
+            if pay_type == 'cash':
+                for admin in get_all_admins():
+                    try:
+                        sent = bot.send_message(admin,
+                            f"💵 <b>MINI APP — НАЛИЧКА</b>\n\n"
+                            f"👤 @{uname} (ID: {uid})\n🎯 {recipient}\n⭐ {stars}\n💰 {price} UZS",
+                            parse_mode='HTML', reply_markup=kb)
+                        admin_order_msgs[order_key][admin] = sent.message_id
+                    except: pass
+                bot.send_message(uid,
+                    "📋 <b>Заявка принята!</b>\n\nМы свяжемся с вами для оплаты наличными.\nПоддержка: @RandomStarsUzb",
+                    parse_mode='HTML', reply_markup=main_kb(uid))
+            else:
+                # Перевод — просим прислать чек
+                bot.send_message(uid,
+                    f"⭐ <b>{stars} звёзд — {price} UZS</b>\n\n"
+                    f"🎯 Получатель: <b>{recipient}</b>\n\n"
+                    f"💳 Оплатите на карту:\n<b>9860 1001 2780 5412\nSafarbek K.</b>\n\n"
+                    f"📎 После оплаты отправьте <b>фото чека</b> прямо сюда:",
+                    parse_mode='HTML')
+                bot.register_next_step_handler_by_chat_id(uid, finish_order_with_target)
+                for admin in get_all_admins():
+                    try:
+                        sent = bot.send_message(admin,
+                            f"📲 <b>ЗАЯВКА ИЗ MINI APP (ждём чек)</b>\n\n"
+                            f"👤 @{uname} (ID: {uid})\n🎯 {recipient}\n⭐ {stars}\n💰 {price} UZS\n💳 Карта: {card}",
+                            parse_mode='HTML')
+                        admin_order_msgs[order_key][admin] = sent.message_id
+                    except: pass
+
+        elif action == 'withdraw':
+            amount     = int(data.get('amount', 0))
+            requisites = data.get('requisites', 'не указаны')
+
+            conn = get_conn(); cur = conn.cursor()
+            cur.execute("SELECT ref_balance FROM users WHERE id=%s", (uid,))
+            row = cur.fetchone()
+            balance = row[0] if row else 0
+
+            if balance < 10000:
+                bot.send_message(uid, "❌ Недостаточно бонусов для вывода")
+                cur.close(); conn.close(); return
+
+            cur.execute("UPDATE users SET ref_balance=0 WHERE id=%s", (uid,))
+            cur.execute("INSERT INTO ref_withdrawals (user_id, amount) VALUES (%s,%s)", (uid, balance))
+            conn.commit(); cur.close(); conn.close()
+
+            adm_kb = types.InlineKeyboardMarkup()
+            adm_kb.add(
+                types.InlineKeyboardButton("✅ Выплачено",  callback_data=f"ref_paid|{uid}"),
+                types.InlineKeyboardButton("❌ Отклонить", callback_data=f"ref_reject|{uid}|{balance}"))
+            for admin in get_all_admins():
+                try:
+                    bot.send_message(admin,
+                        f"💸 <b>Вывод (Mini App)</b>\n\n👤 @{uname} (ID:{uid})\n💰 {balance} UZS\n💳 {requisites}",
+                        parse_mode='HTML', reply_markup=adm_kb)
+                except: pass
+            bot.send_message(uid,
+                f"✅ <b>Заявка на вывод принята!</b>\n\n💰 {balance} UZS\n💳 {requisites}\n\nАдминистратор обработает в ближайшее время.",
+                parse_mode='HTML', reply_markup=main_kb(uid))
+
+    except Exception as e:
+        print(f"❌ web_app_data error: {e}")
+        bot.send_message(uid, "❌ Ошибка обработки данных. Попробуйте снова.")
 
 # --- RUN ---
 if __name__ == "__main__":
