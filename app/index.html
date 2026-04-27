@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -7,845 +6,539 @@
 <title>Random Stars</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@300;400;700;900&display=swap');
-
-  :root {
-    --bg:       #030712;
-    --surface:  #0d1117;
-    --card:     #111827;
-    --border:   #1f2937;
-    --gold:     #f5c842;
-    --gold2:    #fbbf24;
-    --purple:   #7c3aed;
-    --blue:     #3b82f6;
-    --text:     #f9fafb;
-    --muted:    #6b7280;
-    --success:  #10b981;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-  body {
-    font-family: 'Space Mono', monospace;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ЗВЁЗДНЫЙ ФОН */
-  #stars {
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background:
-      radial-gradient(ellipse at 20% 20%, rgba(124,58,237,0.15) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 80%, rgba(59,130,246,0.1) 0%, transparent 50%),
-      var(--bg);
-  }
-  #stars::before, #stars::after {
-    content: '';
-    position: absolute; inset: 0;
-    background-image:
-      radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.8) 0%, transparent 100%),
-      radial-gradient(1px 1px at 30% 45%, rgba(255,255,255,0.5) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 50% 10%, rgba(255,255,255,0.9) 0%, transparent 100%),
-      radial-gradient(1px 1px at 70% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 85% 25%, rgba(255,255,255,0.7) 0%, transparent 100%),
-      radial-gradient(2px 2px at 15% 75%, rgba(245,200,66,0.6) 0%, transparent 100%),
-      radial-gradient(1px 1px at 60% 85%, rgba(255,255,255,0.5) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 92% 50%, rgba(255,255,255,0.8) 0%, transparent 100%),
-      radial-gradient(1px 1px at 40% 30%, rgba(255,255,255,0.3) 0%, transparent 100%),
-      radial-gradient(2px 2px at 75% 90%, rgba(124,58,237,0.5) 0%, transparent 100%);
-    animation: twinkle 4s ease-in-out infinite alternate;
-  }
-  #stars::after {
-    background-image:
-      radial-gradient(1px 1px at 25% 55%, rgba(255,255,255,0.6) 0%, transparent 100%),
-      radial-gradient(1px 1px at 55% 40%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 80% 15%, rgba(255,255,255,0.7) 0%, transparent 100%),
-      radial-gradient(1px 1px at 5% 90%, rgba(255,255,255,0.5) 0%, transparent 100%),
-      radial-gradient(2px 2px at 45% 70%, rgba(245,200,66,0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 95% 80%, rgba(255,255,255,0.6) 0%, transparent 100%);
-    animation-delay: 2s;
-  }
-  @keyframes twinkle {
-    0% { opacity: 0.6; } 100% { opacity: 1; }
-  }
-
-  /* LAYOUT */
-  .app { position: relative; z-index: 1; padding: 0 0 100px; }
-
-  /* HEADER */
-  .header {
-    padding: 20px 20px 0;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .logo {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 18px; font-weight: 900;
-    background: linear-gradient(135deg, var(--gold), var(--gold2), #fff);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    letter-spacing: -0.5px;
-  }
-  .logo span { font-weight: 300; }
-  .balance-chip {
-    background: rgba(245,200,66,0.1);
-    border: 1px solid rgba(245,200,66,0.3);
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 12px; color: var(--gold);
-    display: flex; align-items: center; gap: 6px;
-  }
-  .balance-chip::before { content: '⭐'; font-size: 14px; }
-
-  /* HERO */
-  .hero {
-    padding: 28px 20px 20px;
-    text-align: center;
-  }
-  .hero-icon {
-    font-size: 64px;
-    display: block;
-    animation: float 3s ease-in-out infinite;
-    filter: drop-shadow(0 0 20px rgba(245,200,66,0.5));
-  }
-  @keyframes float {
-    0%,100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-  .hero h1 {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 24px; font-weight: 900;
-    margin: 12px 0 8px;
-    background: linear-gradient(135deg, #fff 0%, var(--gold) 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  }
-  .hero p {
-    font-size: 12px; color: var(--muted);
-    line-height: 1.6;
-  }
-
-  /* TABS */
-  .tabs {
-    display: flex; gap: 8px;
-    padding: 0 20px 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab {
-    flex-shrink: 0;
-    padding: 8px 18px;
-    border-radius: 20px;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-    border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .tab.active {
-    background: var(--gold);
-    border-color: var(--gold);
-    color: #000;
-    font-weight: 700;
-  }
-
-  /* SECTIONS */
-  .section { display: none; padding: 0 20px; }
-  .section.active { display: block; }
-
-  /* GRID ПАКЕТОВ */
-  .packages-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .package-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 16px 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-  .package-card::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: linear-gradient(135deg, rgba(245,200,66,0.05), transparent);
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  .package-card:active { transform: scale(0.97); }
-  .package-card:active::before { opacity: 1; }
-  .package-card.featured {
-    grid-column: 1 / -1;
-    background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(59,130,246,0.1));
-    border-color: rgba(124,58,237,0.4);
-  }
-  .package-card.special {
-    grid-column: 1 / -1;
-    background: linear-gradient(135deg, rgba(245,200,66,0.15), rgba(251,191,36,0.05));
-    border-color: rgba(245,200,66,0.4);
-  }
-  .badge {
-    display: inline-block;
-    font-size: 9px; font-weight: 700;
-    padding: 3px 8px; border-radius: 10px;
-    margin-bottom: 8px; letter-spacing: 0.5px;
-    text-transform: uppercase;
-  }
-  .badge.hot { background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
-  .badge.best { background: rgba(245,200,66,0.2); color: var(--gold); border: 1px solid rgba(245,200,66,0.3); }
-  .badge.pro { background: rgba(124,58,237,0.2); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
-  .pkg-stars {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 22px; font-weight: 900;
-    color: var(--text);
-    display: flex; align-items: center; gap: 6px;
-  }
-  .pkg-stars .star-icon { font-size: 18px; }
-  .pkg-price {
-    font-size: 13px; color: var(--gold);
-    margin-top: 4px; font-weight: 700;
-  }
-  .pkg-per {
-    font-size: 10px; color: var(--muted);
-    margin-top: 2px;
-  }
-  .pkg-discount {
-    position: absolute; top: 12px; right: 12px;
-    background: var(--success);
-    color: #fff; font-size: 9px; font-weight: 700;
-    padding: 3px 7px; border-radius: 8px;
-  }
-
-  /* CUSTOM INPUT */
-  .custom-section {
-    margin-top: 12px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 16px;
-  }
-  .custom-section h3 {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 13px; margin-bottom: 12px;
-    color: var(--text);
-  }
-  .custom-row {
-    display: flex; gap: 10px;
-  }
-  .custom-input {
-    flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 14px;
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .custom-input:focus { border-color: var(--gold); }
-  .custom-input::placeholder { color: var(--muted); }
-  .calc-result {
-    margin-top: 10px;
-    font-size: 12px; color: var(--muted);
-    min-height: 18px;
-    transition: all 0.2s;
-  }
-  .calc-result.show { color: var(--gold); }
-
-  /* КНОПКИ */
-  .btn {
-    width: 100%;
-    padding: 14px;
-    border-radius: 14px;
-    border: none;
-    font-family: 'Unbounded', sans-serif;
-    font-size: 13px; font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 0.3px;
-  }
-  .btn-gold {
-    background: linear-gradient(135deg, var(--gold), var(--gold2));
-    color: #000;
-  }
-  .btn-gold:active { transform: scale(0.98); filter: brightness(0.9); }
-  .btn-outline {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px; padding: 10px;
-  }
-
-  /* ПРОФИЛЬ */
-  .profile-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 20px;
-    margin-bottom: 12px;
-  }
-  .profile-header {
-    display: flex; align-items: center; gap: 14px;
-    margin-bottom: 20px;
-  }
-  .avatar {
-    width: 56px; height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--purple), var(--blue));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 24px;
-    flex-shrink: 0;
-  }
-  .profile-name {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 16px; font-weight: 700;
-  }
-  .profile-id { font-size: 11px; color: var(--muted); margin-top: 3px; }
-  .stats-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .stat-box {
-    background: var(--surface);
-    border-radius: 12px; padding: 14px;
-    text-align: center;
-  }
-  .stat-value {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 18px; font-weight: 900;
-    color: var(--gold);
-  }
-  .stat-label { font-size: 10px; color: var(--muted); margin-top: 4px; }
-
-  /* РЕФ */
-  .ref-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 20px;
-    margin-bottom: 12px;
-  }
-  .ref-title {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 14px; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .ref-link-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 11px; color: var(--muted);
-    word-break: break-all;
-    margin-bottom: 10px;
-    position: relative;
-  }
-  .ref-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 12px 0; }
-  .ref-stat { background: var(--surface); border-radius: 12px; padding: 12px; text-align: center; }
-  .ref-stat-val { font-family: 'Unbounded', sans-serif; font-size: 15px; font-weight: 700; color: var(--text); }
-  .ref-stat-label { font-size: 9px; color: var(--muted); margin-top: 3px; }
-
-  /* ТОП */
-  .top-item {
-    display: flex; align-items: center; gap: 14px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 8px;
-    transition: all 0.2s;
-  }
-  .top-item:first-child {
-    border-color: rgba(245,200,66,0.4);
-    background: linear-gradient(135deg, rgba(245,200,66,0.08), var(--card));
-  }
-  .top-item:nth-child(2) { border-color: rgba(156,163,175,0.4); }
-  .top-item:nth-child(3) { border-color: rgba(180,83,9,0.4); }
-  .rank {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 18px; font-weight: 900;
-    min-width: 28px; text-align: center;
-  }
-  .rank-1 { color: var(--gold); }
-  .rank-2 { color: #9ca3af; }
-  .rank-3 { color: #b45309; }
-  .rank-other { color: var(--muted); font-size: 14px; }
-  .top-user { flex: 1; }
-  .top-username { font-size: 14px; font-weight: 700; }
-  .top-amount { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .top-crown { font-size: 20px; }
-
-  /* НИЖНИЙ БАР */
-  .bottom-nav {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(13,17,23,0.95);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    display: flex;
-    z-index: 100;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .nav-item {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 10px 0;
-    cursor: pointer;
-    transition: all 0.2s;
-    gap: 4px;
-  }
-  .nav-icon { font-size: 22px; transition: transform 0.2s; }
-  .nav-label { font-size: 9px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
-  .nav-item.active .nav-label { color: var(--gold); }
-  .nav-item.active .nav-icon { transform: scale(1.2); filter: drop-shadow(0 0 6px rgba(245,200,66,0.6)); }
-
-  /* МОДАЛКА ПОКУПКИ */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
-    z-index: 200; align-items: flex-end;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    width: 100%;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    border-radius: 24px 24px 0 0;
-    padding: 24px 20px 40px;
-    animation: slideUp 0.3s ease;
-  }
-  @keyframes slideUp {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
-  }
-  .modal-handle {
-    width: 40px; height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    margin: 0 auto 20px;
-  }
-  .modal-title {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 18px; font-weight: 900;
-    margin-bottom: 6px;
-  }
-  .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
-  .modal-price {
-    background: var(--card);
-    border-radius: 16px; padding: 16px;
-    margin-bottom: 16px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .modal-price-label { font-size: 12px; color: var(--muted); }
-  .modal-price-val {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 20px; font-weight: 900; color: var(--gold);
-  }
-  .modal-input {
-    width: 100%;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 16px;
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    font-size: 14px;
-    outline: none;
-    margin-bottom: 10px;
-    transition: border-color 0.2s;
-  }
-  .modal-input:focus { border-color: var(--gold); }
-  .modal-input::placeholder { color: var(--muted); }
-  .modal-hint { font-size: 11px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
-
-  /* TOAST */
-  .toast {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px);
-    background: var(--success); color: #fff;
-    padding: 10px 20px; border-radius: 20px;
-    font-size: 13px; font-weight: 700;
-    z-index: 300; transition: transform 0.3s ease;
-    white-space: nowrap;
-  }
-  .toast.show { transform: translateX(-50%) translateY(0); }
-
-  .divider { height: 1px; background: var(--border); margin: 16px 0; }
-  .section-title {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 11px; color: var(--muted);
-    letter-spacing: 1px; text-transform: uppercase;
-    margin-bottom: 12px;
-  }
-  .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; }
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@300;400;700;900&display=swap');
+:root{--bg:#030712;--surface:#0d1117;--card:#111827;--border:#1f2937;--gold:#f5c842;--gold2:#fbbf24;--purple:#7c3aed;--blue:#3b82f6;--text:#f9fafb;--muted:#6b7280;--success:#10b981;--danger:#ef4444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Space Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse at 20% 20%,rgba(124,58,237,.15) 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,rgba(59,130,246,.1) 0%,transparent 50%),var(--bg)}
+#stars::before{content:'';position:absolute;inset:0;background-image:radial-gradient(1px 1px at 10% 15%,rgba(255,255,255,.8) 0%,transparent 100%),radial-gradient(1.5px 1.5px at 50% 10%,rgba(255,255,255,.9) 0%,transparent 100%),radial-gradient(1px 1px at 70% 60%,rgba(255,255,255,.4) 0%,transparent 100%),radial-gradient(2px 2px at 15% 75%,rgba(245,200,66,.6) 0%,transparent 100%),radial-gradient(1px 1px at 60% 85%,rgba(255,255,255,.5) 0%,transparent 100%),radial-gradient(1.5px 1.5px at 92% 50%,rgba(255,255,255,.8) 0%,transparent 100%);animation:twinkle 4s ease-in-out infinite alternate}
+@keyframes twinkle{0%{opacity:.6}100%{opacity:1}}
+.app{position:relative;z-index:1;padding:0 0 90px}
+.header{padding:20px 16px 0;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Unbounded',sans-serif;font-size:17px;font-weight:900;background:linear-gradient(135deg,var(--gold),var(--gold2),#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo span{font-weight:300}
+.balance-chip{background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.3);border-radius:20px;padding:6px 13px;font-size:11px;color:var(--gold);display:flex;align-items:center;gap:5px}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(13,17,23,.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0;cursor:pointer;transition:all .2s;gap:3px}
+.nav-icon{font-size:20px;transition:transform .2s}
+.nav-label{font-size:9px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+.nav-item.active .nav-label{color:var(--gold)}
+.nav-item.active .nav-icon{transform:scale(1.2);filter:drop-shadow(0 0 6px rgba(245,200,66,.6))}
+.section{display:none;padding:0 16px}
+.section.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:12px}
+.sec-label{font-family:'Unbounded',sans-serif;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+/* HERO */
+.hero{padding:22px 16px 14px;text-align:center}
+.hero-icon{font-size:54px;display:block;animation:float 3s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(245,200,66,.5))}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.hero h1{font-family:'Unbounded',sans-serif;font-size:21px;font-weight:900;margin:10px 0 6px;background:linear-gradient(135deg,#fff 0%,var(--gold) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:11px;color:var(--muted);line-height:1.6}
+/* PACKAGES */
+.pkg-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pkg{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 12px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.pkg:active{transform:scale(.96);border-color:var(--gold)}
+.pkg.wide{grid-column:1/-1}
+.pkg.featured{border-color:rgba(124,58,237,.5);background:linear-gradient(135deg,rgba(124,58,237,.12),var(--card))}
+.pkg.special{border-color:rgba(245,200,66,.4);background:linear-gradient(135deg,rgba(245,200,66,.1),var(--card))}
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase}
+.badge.hot{background:rgba(239,68,68,.2);color:#ef4444}
+.badge.best{background:rgba(245,200,66,.2);color:var(--gold)}
+.badge.pro{background:rgba(124,58,237,.2);color:#a78bfa}
+.pkg-stars{font-family:'Unbounded',sans-serif;font-size:20px;font-weight:900}
+.pkg-price{font-size:12px;color:var(--gold);margin-top:3px;font-weight:700}
+.pkg-per{font-size:9px;color:var(--muted);margin-top:1px}
+.pkg-disc{position:absolute;top:10px;right:10px;background:var(--success);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px}
+/* INPUTS & BUTTONS */
+.inp-label{font-size:11px;color:var(--muted);margin-bottom:6px}
+.inp{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;color:var(--text);font-family:'Space Mono',monospace;font-size:14px;outline:none;transition:border-color .2s}
+.inp:focus{border-color:var(--gold)}
+.inp::placeholder{color:var(--muted)}
+.btn{width:100%;padding:14px;border-radius:14px;border:none;font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000}
+.btn-gold:active{transform:scale(.98);filter:brightness(.9)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--muted);font-size:12px;padding:11px}
+.btn:disabled{opacity:.4;pointer-events:none}
+.gap{height:10px}
+/* PROFILE */
+.prof-header{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.avatar{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.prof-name{font-family:'Unbounded',sans-serif;font-size:15px;font-weight:700}
+.prof-id{font-size:11px;color:var(--muted);margin-top:2px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--surface);border-radius:12px;padding:13px;text-align:center}
+.stat-v{font-family:'Unbounded',sans-serif;font-size:16px;font-weight:900;color:var(--gold)}
+.stat-l{font-size:9px;color:var(--muted);margin-top:3px}
+/* REF */
+.ref-link{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px;font-size:10px;color:var(--muted);word-break:break-all;margin-bottom:10px}
+.ref-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+.ref-stat{background:var(--surface);border-radius:12px;padding:11px;text-align:center}
+.ref-sv{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700}
+.ref-sl{font-size:9px;color:var(--muted);margin-top:2px}
+/* TOP */
+.top-item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px}
+.top-item:first-child{border-color:rgba(245,200,66,.4);background:linear-gradient(135deg,rgba(245,200,66,.07),var(--card))}
+.top-item:nth-child(2){border-color:rgba(156,163,175,.3)}
+.top-item:nth-child(3){border-color:rgba(180,83,9,.3)}
+.rank{font-family:'Unbounded',sans-serif;font-size:17px;font-weight:900;min-width:26px;text-align:center}
+.r1{color:var(--gold)}.r2{color:#9ca3af}.r3{color:#b45309}.rn{color:var(--muted);font-size:13px}
+.top-u{flex:1}
+.top-name{font-size:13px;font-weight:700}
+.top-amt{font-size:10px;color:var(--muted);margin-top:1px}
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);z-index:200;align-items:flex-end}
+.overlay.open{display:flex}
+.modal{width:100%;background:var(--surface);border-top:1px solid var(--border);border-radius:24px 24px 0 0;padding:22px 18px 36px;animation:up .3s ease;max-height:90vh;overflow-y:auto}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px}
+.modal-title{font-family:'Unbounded',sans-serif;font-size:16px;font-weight:900;margin-bottom:4px}
+.modal-sub{font-size:11px;color:var(--muted);margin-bottom:16px}
+/* STEPPER */
+.stepper{display:flex;align-items:center;gap:6px;margin-bottom:18px}
+.s-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .3s}
+.s-dot.done{background:var(--success)}
+.s-dot.cur{background:var(--gold);width:24px;border-radius:4px}
+.step-block{display:none}
+.step-block.active{display:block}
+/* INFO BOX */
+.info-box{background:var(--card);border-radius:14px;padding:14px;margin-bottom:14px}
+.info-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.info-row:last-child{margin-bottom:0}
+.info-key{font-size:11px;color:var(--muted)}
+.info-val{font-size:13px;font-weight:700}
+.info-val.gold{color:var(--gold)}
+.card-box{background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.25);border-radius:12px;padding:13px;margin-bottom:14px;font-size:12px;line-height:1.8}
+/* PAY TYPE */
+.pay-types{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.pay-type{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:14px;text-align:center;cursor:pointer;transition:all .2s}
+.pay-type.sel{border-color:var(--gold);background:rgba(245,200,66,.08)}
+.pt-icon{font-size:24px;margin-bottom:6px}
+.pt-label{font-size:11px;font-weight:700}
+.pt-sub{font-size:9px;color:var(--muted);margin-top:2px}
+.note{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:14px;padding:12px;background:var(--card);border-radius:12px}
+/* CUSTOM */
+.custom-calc{font-size:11px;color:var(--muted);margin-top:8px;min-height:16px}
+.custom-calc.show{color:var(--gold)}
+.empty{text-align:center;color:var(--muted);font-size:12px;padding:40px 0}
+/* TOAST */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--success);color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;font-weight:700;z-index:300;transition:transform .3s;white-space:nowrap;max-width:90vw;text-align:center}
+.toast.err{background:var(--danger)}
+.toast.show{transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
-
 <div id="stars"></div>
-
 <div class="app">
 
-  <!-- HEADER -->
   <div class="header">
     <div class="logo">Random<span>Stars</span></div>
-    <div class="balance-chip" id="balanceChip">0 звёзд</div>
+    <div class="balance-chip" id="balanceChip">⭐ —</div>
   </div>
 
-  <!-- SHOP TAB -->
+  <!-- SHOP -->
   <div class="section active" id="tab-shop">
     <div class="hero">
       <span class="hero-icon">⭐</span>
       <h1>Telegram Stars</h1>
-      <p>Быстро · Безопасно · Выгодно<br>Чем больше — тем дешевле</p>
+      <p>Быстро · Безопасно · Выгодно<br>Формула: кол-во × 150 − 8%</p>
     </div>
-
-    <div class="packages-grid" id="packagesGrid"></div>
-
-    <div class="custom-section" style="margin-top:12px">
-      <h3>✨ Своё количество</h3>
-      <div class="custom-row">
-        <input class="custom-input" id="customInput" type="number" placeholder="Введите кол-во" min="100">
-        <button class="btn btn-gold" style="width:auto;padding:12px 16px;font-size:11px" onclick="buyCustom()">→</button>
+    <div class="sec-label">Выберите пакет</div>
+    <div class="pkg-grid" id="pkgGrid"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="sec-label">✨ Своё количество</div>
+      <div class="inp-label">Введите количество звёзд (мин. 100)</div>
+      <div style="display:flex;gap:10px">
+        <input class="inp" id="customStars" type="number" placeholder="например 750" min="100" style="flex:1">
+        <button class="btn btn-gold" style="width:auto;padding:12px 16px;font-size:12px" onclick="buyCustom()">→</button>
       </div>
-      <div class="calc-result" id="calcResult">Минимум 100 звёзд</div>
+      <div class="custom-calc" id="customCalc">Введите количество</div>
     </div>
   </div>
 
-  <!-- PROFILE TAB -->
+  <!-- PROFILE -->
   <div class="section" id="tab-profile">
-    <div style="padding-top:20px">
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar" id="avatarEmoji">👤</div>
+    <div style="padding-top:18px">
+      <div class="card">
+        <div class="prof-header">
+          <div class="avatar" id="avatarEl">👤</div>
           <div>
-            <div class="profile-name" id="profileName">Загрузка...</div>
-            <div class="profile-id" id="profileId">ID: —</div>
+            <div class="prof-name" id="profName">Загрузка...</div>
+            <div class="prof-id" id="profId">ID: —</div>
           </div>
         </div>
-        <div class="stats-grid">
-          <div class="stat-box">
-            <div class="stat-value" id="statSpent">0</div>
-            <div class="stat-label">UZS потрачено</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="statPurchases">0</div>
-            <div class="stat-label">покупок</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="statRefEarned">0</div>
-            <div class="stat-label">реф. заработано</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="statRefBalance">0</div>
-            <div class="stat-label">к выводу (UZS)</div>
-          </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-v" id="sSpent">—</div><div class="stat-l">UZS потрачено</div></div>
+          <div class="stat"><div class="stat-v" id="sPurchases">—</div><div class="stat-l">покупок</div></div>
+          <div class="stat"><div class="stat-v" id="sRefEarned">—</div><div class="stat-l">реф. заработано</div></div>
+          <div class="stat"><div class="stat-v" id="sRefBal">—</div><div class="stat-l">к выводу (UZS)</div></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- REF TAB -->
+  <!-- REF -->
   <div class="section" id="tab-ref">
-    <div style="padding-top:20px">
-      <div class="ref-card">
-        <div class="ref-title">👥 Реферальная система</div>
+    <div style="padding-top:18px">
+      <div class="card">
+        <div class="sec-label">👥 Реферальная система</div>
         <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Приглашай друзей и получай <b style="color:var(--gold)">5%</b> с каждой их покупки</p>
-        <div class="ref-link-box" id="refLink">Загрузка ссылки...</div>
+        <div class="ref-link" id="refLinkEl">Загрузка...</div>
         <button class="btn btn-gold" style="margin-bottom:12px" onclick="copyRef()">📋 Скопировать ссылку</button>
         <div class="ref-stats">
-          <div class="ref-stat">
-            <div class="ref-stat-val" id="refInvited">0</div>
-            <div class="ref-stat-label">приглашено</div>
-          </div>
-          <div class="ref-stat">
-            <div class="ref-stat-val" id="refTotal">0</div>
-            <div class="ref-stat-label">оборот</div>
-          </div>
-          <div class="ref-stat">
-            <div class="ref-stat-val" id="refEarned">0</div>
-            <div class="ref-stat-label">бонус UZS</div>
-          </div>
+          <div class="ref-stat"><div class="ref-sv" id="rInvited">—</div><div class="ref-sl">приглашено</div></div>
+          <div class="ref-stat"><div class="ref-sv" id="rTotal">—</div><div class="ref-sl">оборот</div></div>
+          <div class="ref-stat"><div class="ref-sv" id="rEarned">—</div><div class="ref-sl">бонус UZS</div></div>
         </div>
       </div>
-      <div class="ref-card">
-        <div class="ref-title">💸 Вывод бонусов</div>
-        <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Минимальная сумма вывода: <b style="color:var(--gold)">10 000 UZS</b></p>
-        <div id="withdrawBalance" style="font-family:'Unbounded',sans-serif;font-size:22px;font-weight:900;color:var(--gold);margin-bottom:14px">0 UZS</div>
-        <button class="btn btn-gold" id="withdrawBtn" onclick="openWithdraw()">Вывести</button>
+      <div class="card">
+        <div class="sec-label">💸 Вывод бонусов</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Минимум: <b style="color:var(--gold)">10 000 UZS</b></p>
+        <div style="font-family:'Unbounded',sans-serif;font-size:24px;font-weight:900;color:var(--gold);margin-bottom:14px" id="wdBalance">— UZS</div>
+        <button class="btn btn-gold" id="wdBtn" onclick="openWithdrawModal()">Вывести бонусы</button>
       </div>
     </div>
   </div>
 
-  <!-- TOP TAB -->
+  <!-- TOP -->
   <div class="section" id="tab-top">
-    <div style="padding-top:20px">
-      <div class="section-title">🏆 Топ покупателей</div>
-      <div id="topList">
-        <div class="empty">Загрузка...</div>
-      </div>
+    <div style="padding-top:18px">
+      <div class="sec-label">🏆 Топ покупателей</div>
+      <div id="topList"><div class="empty">Загрузка...</div></div>
     </div>
   </div>
 
-</div><!-- /app -->
+</div>
 
 <!-- NAV -->
 <div class="bottom-nav">
-  <div class="nav-item active" onclick="switchTab('shop',this)">
-    <div class="nav-icon">🛒</div>
-    <div class="nav-label">Магазин</div>
-  </div>
-  <div class="nav-item" onclick="switchTab('profile',this)">
-    <div class="nav-icon">👤</div>
-    <div class="nav-label">Профиль</div>
-  </div>
-  <div class="nav-item" onclick="switchTab('ref',this)">
-    <div class="nav-icon">👥</div>
-    <div class="nav-label">Рефералка</div>
-  </div>
-  <div class="nav-item" onclick="switchTab('top',this)">
-    <div class="nav-icon">🏆</div>
-    <div class="nav-label">Топ</div>
-  </div>
+  <div class="nav-item active" onclick="switchTab('shop',this)"><div class="nav-icon">🛒</div><div class="nav-label">Магазин</div></div>
+  <div class="nav-item" onclick="switchTab('profile',this)"><div class="nav-icon">👤</div><div class="nav-label">Профиль</div></div>
+  <div class="nav-item" onclick="switchTab('ref',this)"><div class="nav-icon">👥</div><div class="nav-label">Рефералка</div></div>
+  <div class="nav-item" onclick="switchTab('top',this)"><div class="nav-icon">🏆</div><div class="nav-label">Топ</div></div>
 </div>
 
-<!-- MODAL -->
-<div class="modal-overlay" id="buyModal">
+<!-- MODAL ЗАКАЗА -->
+<div class="overlay" id="orderModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modalTitle">Купить ⭐</div>
-    <div class="modal-sub" id="modalSub">Введите данные для оформления</div>
-    <div class="modal-price">
-      <div class="modal-price-label">К оплате</div>
-      <div class="modal-price-val" id="modalPrice">0 UZS</div>
+    <div class="stepper">
+      <div class="s-dot cur" id="dot0"></div>
+      <div class="s-dot" id="dot1"></div>
+      <div class="s-dot" id="dot2"></div>
     </div>
-    <input class="modal-input" id="modalRecipient" placeholder="@username или ссылка получателя" type="text">
-    <div class="modal-hint">💳 Реквизиты для оплаты:<br><b>9860 1001 2780 5412 · Safarbek K.</b></div>
-    <button class="btn btn-gold" onclick="confirmOrder()">✅ Оформить заявку</button>
-    <div style="height:10px"></div>
-    <button class="btn btn-outline" onclick="closeModal()">Отмена</button>
+
+    <!-- ШАГ 1: Получатель -->
+    <div class="step-block active" id="step0">
+      <div class="modal-title" id="s0title">Купить ⭐</div>
+      <div class="modal-sub">Шаг 1 из 3 — Кому отправить?</div>
+      <div class="info-box">
+        <div class="info-row"><span class="info-key">Количество</span><span class="info-val" id="s0stars">—</span></div>
+        <div class="info-row"><span class="info-key">К оплате</span><span class="info-val gold" id="s0price">—</span></div>
+      </div>
+      <div class="inp-label">Username или ссылка получателя звёзд</div>
+      <input class="inp" id="recipientInp" placeholder="@username или https://t.me/..." style="margin-bottom:14px">
+      <button class="btn btn-gold" onclick="goStep(1)">Далее →</button>
+      <div class="gap"></div>
+      <button class="btn btn-outline" onclick="closeOrder()">Отмена</button>
+    </div>
+
+    <!-- ШАГ 2: Способ оплаты -->
+    <div class="step-block" id="step1">
+      <div class="modal-title">Оплата</div>
+      <div class="modal-sub">Шаг 2 из 3 — Выберите способ</div>
+      <div class="pay-types">
+        <div class="pay-type sel" id="pt-transfer" onclick="selectPay('transfer')">
+          <div class="pt-icon">💳</div>
+          <div class="pt-label">Перевод</div>
+          <div class="pt-sub">Карта Uzcard</div>
+        </div>
+        <div class="pay-type" id="pt-cash" onclick="selectPay('cash')">
+          <div class="pt-icon">💵</div>
+          <div class="pt-label">Наличные</div>
+          <div class="pt-sub">Встретимся</div>
+        </div>
+      </div>
+      <div id="transferBlock">
+        <div class="card-box">
+          💳 <b>Реквизиты для перевода:</b><br>
+          9860 1001 2780 5412<br>
+          Safarbek K.
+        </div>
+        <div class="inp-label">Ваша карта (необязательно, для возможного возврата)</div>
+        <input class="inp" id="cardInp" placeholder="9860 xxxx xxxx xxxx" style="margin-bottom:14px">
+      </div>
+      <div id="cashBlock" style="display:none">
+        <div class="note">💵 Выберите наличные если хотите оплатить при встрече. Администратор свяжется с вами в боте.</div>
+      </div>
+      <button class="btn btn-gold" onclick="goStep(2)">Далее →</button>
+      <div class="gap"></div>
+      <button class="btn btn-outline" onclick="goStep(0)">← Назад</button>
+    </div>
+
+    <!-- ШАГ 3: Подтверждение -->
+    <div class="step-block" id="step2">
+      <div class="modal-title">Подтверждение</div>
+      <div class="modal-sub">Шаг 3 из 3 — Всё верно?</div>
+      <div class="info-box" id="confirmBox"></div>
+      <div id="noteTransfer" class="note" style="display:none">
+        📎 После подтверждения бот напишет вам в чат — нужно будет <b style="color:var(--gold)">прислать фото чека</b> об оплате.
+      </div>
+      <div id="noteCash" class="note" style="display:none">
+        📞 После подтверждения администратор свяжется с вами в боте для организации встречи.
+      </div>
+      <button class="btn btn-gold" id="confirmBtn" onclick="submitOrder()">✅ Отправить заявку</button>
+      <div class="gap"></div>
+      <button class="btn btn-outline" onclick="goStep(1)">← Назад</button>
+    </div>
   </div>
 </div>
 
-<!-- TOAST -->
+<!-- MODAL ВЫВОДА -->
+<div class="overlay" id="wdModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">💸 Вывод бонусов</div>
+    <div class="modal-sub" id="wdSub">Введите реквизиты</div>
+    <div class="info-box">
+      <div class="info-row"><span class="info-key">Сумма к выводу</span><span class="info-val gold" id="wdAmtLabel">0 UZS</span></div>
+    </div>
+    <div class="inp-label">Номер карты для перевода</div>
+    <input class="inp" id="wdCard" placeholder="9860 xxxx xxxx xxxx" style="margin-bottom:10px">
+    <div class="inp-label">Имя владельца карты</div>
+    <input class="inp" id="wdName" placeholder="Иванов Иван" style="margin-bottom:14px">
+    <button class="btn btn-gold" onclick="submitWithdraw()">Отправить заявку</button>
+    <div class="gap"></div>
+    <button class="btn btn-outline" onclick="closeWithdraw()">Отмена</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+// ⚠️ ЗАМЕНИ НА СВОЙ RENDER URL
+const API = 'https://astro-platform-starter-9zh1.onrender.com';
+const BOT  = 'RandomStarsUzb_bot';
+
 const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-  tg.setHeaderColor('#030712');
-  tg.setBackgroundColor('#030712');
-}
+if(tg){tg.ready();tg.expand();tg.setHeaderColor('#030712');tg.setBackgroundColor('#030712')}
 
-const user = tg?.initDataUnsafe?.user || {};
-const userId = user.id || 0;
-const userName = user.username || '';
-const firstName = user.first_name || 'Пользователь';
+const user     = tg?.initDataUnsafe?.user||{};
+const userId   = user.id||0;
+const userName = user.username||'';
+const firstName= user.first_name||'Пользователь';
 
-// Данные (в реальном проекте — запрос к API бота)
-let userData = {
-  spent: 0, purchases: 0,
-  ref_earned: 0, ref_balance: 0,
-  invited: 0, total: 0
-};
-
-const PACKAGES = [
-  { id:'p1000', stars:1000, price:138000, badge:'pro',  label:'PRO' },
-  { id:'p500',  stars:500,  price:69000,  badge:'best', label:'ВЫГОДНО', discount:'-8%' },
-  { id:'p100',  stars:100,  price:15000  },
-  { id:'p150',  stars:150,  price:21000  },
-  { id:'p200',  stars:200,  price:28000  },
-  { id:'p250',  stars:250,  price:34500  },
-  { id:'p300',  stars:300,  price:41000,  badge:'hot', label:'ХИТ' },
-  { id:'p350',  stars:350,  price:48000  },
-  { id:'p400',  stars:400,  price:55000  },
-  { id:'p450',  stars:450,  price:62000  },
+const PKGS=[
+  {stars:1000,price:138000,badge:'pro',  label:'PRO',   cls:'wide special'},
+  {stars:500, price:69000, badge:'best', label:'ВЫГОДНО',cls:'featured',disc:'-8%'},
+  {stars:100, price:15000},
+  {stars:150, price:21000},
+  {stars:200, price:28000},
+  {stars:250, price:34500},
+  {stars:300, price:41000, badge:'hot',  label:'ХИТ'},
+  {stars:350, price:48000},
+  {stars:400, price:55000},
+  {stars:450, price:62000},
 ];
 
-let selectedPkg = null;
+let pkg=null, step=0, payType='transfer', ud={spent:0,purchases:0,ref_earned:0,ref_balance:0,invited:0,total:0};
 
-// Рендер пакетов
-function renderPackages() {
-  const grid = document.getElementById('packagesGrid');
-  grid.innerHTML = PACKAGES.map(p => `
-    <div class="package-card ${p.id==='p1000'?'special':p.id==='p500'?'featured':''}"
-         onclick="openBuy(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-      ${p.badge ? `<div class="badge ${p.badge}">${p.label}</div><br>` : ''}
-      ${p.discount ? `<div class="pkg-discount">${p.discount}</div>` : ''}
-      <div class="pkg-stars"><span class="star-icon">⭐</span>${p.stars}</div>
+async function api(path,opts){
+  try{const r=await fetch(API+path,opts);return await r.json()}catch{return null}
+}
+
+async function loadAll(){
+  const b=await api('/api/balance');
+  if(b) document.getElementById('balanceChip').textContent='⭐ '+(b.balance||0).toLocaleString('ru');
+  if(!userId)return;
+  const u=await api(`/api/user/${userId}`);
+  if(u&&!u.error){ud=u;renderProfile();renderRef()}
+}
+
+// ПАКЕТЫ
+function renderPackages(){
+  document.getElementById('pkgGrid').innerHTML=PKGS.map(p=>`
+    <div class="pkg ${p.cls||''}" onclick='openOrder(${JSON.stringify(p)})'>
+      ${p.badge?`<div class="badge ${p.badge}">${p.label}</div><br>`:''}
+      ${p.disc?`<div class="pkg-disc">${p.disc}</div>`:''}
+      <div class="pkg-stars">⭐ ${p.stars.toLocaleString('ru')}</div>
       <div class="pkg-price">${p.price.toLocaleString('ru')} сум</div>
-      <div class="pkg-per">${Math.round(p.price/p.stars)} сум/звезда</div>
-    </div>
-  `).join('');
+      <div class="pkg-per">${Math.round(p.price/p.stars)} сум/⭐</div>
+    </div>`).join('');
 }
 
-// Кастомная цена
-function calcPrice(stars) {
-  return Math.round(stars * 150 * 0.92);
-}
-
-document.getElementById('customInput').addEventListener('input', function() {
-  const v = parseInt(this.value);
-  const el = document.getElementById('calcResult');
-  if (!v || v < 100) {
-    el.className = 'calc-result';
-    el.textContent = 'Минимум 100 звёзд';
-  } else {
-    el.className = 'calc-result show';
-    el.textContent = `≈ ${calcPrice(v).toLocaleString('ru')} сум (${v} × 150 − 8%)`;
-  }
+function calcP(v){return Math.round(v*150*0.92)}
+document.getElementById('customStars').addEventListener('input',function(){
+  const v=parseInt(this.value);
+  const el=document.getElementById('customCalc');
+  if(!v||v<100){el.className='custom-calc';el.textContent='Минимум 100 звёзд';return}
+  el.className='custom-calc show';
+  el.textContent=`${v}×150−8% = ${calcP(v).toLocaleString('ru')} сум`;
 });
-
-function buyCustom() {
-  const v = parseInt(document.getElementById('customInput').value);
-  if (!v || v < 100) { showToast('Минимум 100 звёзд!'); return; }
-  openBuy({ stars: v, price: calcPrice(v), custom: true });
+function buyCustom(){
+  const v=parseInt(document.getElementById('customStars').value);
+  if(!v||v<100){toast('Минимум 100 звёзд!',1);return}
+  openOrder({stars:v,price:calcP(v)});
 }
 
-// Открыть модалку покупки
-function openBuy(pkg) {
-  selectedPkg = pkg;
-  document.getElementById('modalTitle').textContent = `Купить ${pkg.stars} ⭐`;
-  document.getElementById('modalSub').textContent = `${pkg.stars} звёзд · ${pkg.price.toLocaleString('ru')} сум`;
-  document.getElementById('modalPrice').textContent = `${pkg.price.toLocaleString('ru')} UZS`;
-  document.getElementById('modalRecipient').value = userName ? '@' + userName : '';
-  document.getElementById('buyModal').classList.add('open');
+// ЗАКАЗ
+function openOrder(p){
+  pkg=p;step=0;payType='transfer';
+  document.getElementById('s0title').textContent=`Купить ${p.stars} ⭐`;
+  document.getElementById('s0stars').textContent=p.stars+' звёзд';
+  document.getElementById('s0price').textContent=p.price.toLocaleString('ru')+' UZS';
+  document.getElementById('recipientInp').value=userName?'@'+userName:'';
+  document.getElementById('cardInp').value='';
+  selectPay('transfer');
+  showStep(0);
+  document.getElementById('orderModal').classList.add('open');
 }
+function closeOrder(){document.getElementById('orderModal').classList.remove('open')}
+document.getElementById('orderModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeOrder()});
 
-function closeModal() {
-  document.getElementById('buyModal').classList.remove('open');
-}
-
-// Клик вне модалки
-document.getElementById('buyModal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-
-function confirmOrder() {
-  const recipient = document.getElementById('modalRecipient').value.trim();
-  if (!recipient) { showToast('Введите получателя!'); return; }
-
-  // Отправляем данные боту через Telegram.WebApp
-  const data = JSON.stringify({
-    action: 'buy',
-    stars: selectedPkg.stars,
-    price: selectedPkg.price,
-    recipient: recipient,
-    user_id: userId,
-    username: userName
+function showStep(n){
+  step=n;
+  [0,1,2].forEach(i=>{
+    document.getElementById('step'+i).classList.toggle('active',i===n);
+    const d=document.getElementById('dot'+i);
+    d.className='s-dot'+(i<n?' done':i===n?' cur':'');
   });
+}
 
-  if (tg) {
-    tg.sendData(data);
-    closeModal();
-    showToast('✅ Заявка отправлена!');
-  } else {
-    closeModal();
-    showToast('✅ Заявка принята!');
+function goStep(n){
+  if(n===1){
+    if(!document.getElementById('recipientInp').value.trim()){toast('Введите получателя!',1);return}
   }
-}
-
-// Профиль
-function renderProfile() {
-  document.getElementById('profileName').textContent = firstName + (userName ? ` (@${userName})` : '');
-  document.getElementById('profileId').textContent = 'ID: ' + (userId || '—');
-  document.getElementById('statSpent').textContent = userData.spent.toLocaleString('ru');
-  document.getElementById('statPurchases').textContent = userData.purchases;
-  document.getElementById('statRefEarned').textContent = userData.ref_earned.toLocaleString('ru');
-  document.getElementById('statRefBalance').textContent = userData.ref_balance.toLocaleString('ru');
-  // Аватар по первой букве
-  const avatars = ['🌟','💫','⚡','🔮','👑','🚀','💎','🎯'];
-  document.getElementById('avatarEmoji').textContent = avatars[userId % avatars.length] || '👤';
-}
-
-// Рефералка
-function renderRef() {
-  const botUsername = 'RandomStarsUzb_bot';
-  const link = `https://t.me/${botUsername}?start=ref_${userId}`;
-  document.getElementById('refLink').textContent = link;
-  document.getElementById('refInvited').textContent = userData.invited;
-  document.getElementById('refTotal').textContent = userData.total.toLocaleString('ru');
-  document.getElementById('refEarned').textContent = userData.ref_earned.toLocaleString('ru');
-  document.getElementById('withdrawBalance').textContent = userData.ref_balance.toLocaleString('ru') + ' UZS';
-  const btn = document.getElementById('withdrawBtn');
-  if (userData.ref_balance < 10000) {
-    btn.style.opacity = '0.4';
-    btn.textContent = `Нужно ${(10000 - userData.ref_balance).toLocaleString('ru')} UZS ещё`;
+  if(n===2){
+    const r=document.getElementById('recipientInp').value.trim();
+    const c=document.getElementById('cardInp').value.trim();
+    document.getElementById('confirmBox').innerHTML=`
+      <div class="info-row"><span class="info-key">Звёзд</span><span class="info-val">${pkg.stars} ⭐</span></div>
+      <div class="info-row"><span class="info-key">Сумма</span><span class="info-val gold">${pkg.price.toLocaleString('ru')} UZS</span></div>
+      <div class="info-row"><span class="info-key">Получатель</span><span class="info-val">${r}</span></div>
+      <div class="info-row"><span class="info-key">Оплата</span><span class="info-val">${payType==='cash'?'💵 Наличные':'💳 Перевод'}</span></div>
+      ${c?`<div class="info-row"><span class="info-key">Ваша карта</span><span class="info-val">${c}</span></div>`:''}`;
+    document.getElementById('noteTransfer').style.display=payType==='transfer'?'block':'none';
+    document.getElementById('noteCash').style.display=payType==='cash'?'block':'none';
   }
+  showStep(n);
 }
 
-function copyRef() {
-  const botUsername = 'RandomStarsUzb_bot';
-  const link = `https://t.me/${botUsername}?start=ref_${userId}`;
-  navigator.clipboard?.writeText(link).then(() => showToast('✅ Ссылка скопирована!'))
-    .catch(() => showToast('Скопируйте ссылку вручную'));
+function selectPay(t){
+  payType=t;
+  document.getElementById('pt-transfer').classList.toggle('sel',t==='transfer');
+  document.getElementById('pt-cash').classList.toggle('sel',t==='cash');
+  document.getElementById('transferBlock').style.display=t==='transfer'?'block':'none';
+  document.getElementById('cashBlock').style.display=t==='cash'?'block':'none';
 }
 
-function openWithdraw() {
-  if (userData.ref_balance < 10000) return;
-  if (tg) tg.sendData(JSON.stringify({ action: 'withdraw', user_id: userId, amount: userData.ref_balance }));
-  showToast('✅ Заявка на вывод отправлена!');
+async function submitOrder(){
+  const btn=document.getElementById('confirmBtn');
+  btn.disabled=true;btn.textContent='Отправляем...';
+  const res=await api('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    user_id:userId,username:userName,
+    stars:pkg.stars,price:pkg.price,
+    recipient:document.getElementById('recipientInp').value.trim(),
+    card:document.getElementById('cardInp').value.trim()||'не указана',
+    pay_type:payType
+  })});
+  btn.disabled=false;btn.textContent='✅ Отправить заявку';
+  if(res?.ok){
+    closeOrder();
+    toast(payType==='transfer'?'✅ Заявка принята! Проверь бота — нужно прислать чек':'✅ Заявка принята! Ждите сообщения от администратора');
+  }else toast(res?.error||'Ошибка. Попробуйте снова',1);
 }
 
-// Топ
-function renderTop() {
-  // Заглушка — в реальном проекте данные с API
-  const mockTop = [
-    { username: 'top_buyer', spent: 580000 },
-    { username: 'starfan99', spent: 345000 },
-    { username: 'uzb_stars', spent: 210000 },
-    { username: 'buyerking', spent: 138000 },
-    { username: 'anonymous', spent: 80000 },
-  ];
-  const medals = ['🥇','🥈','🥉'];
-  const rankClasses = ['rank-1','rank-2','rank-3','rank-other','rank-other'];
-  document.getElementById('topList').innerHTML = mockTop.length ? mockTop.map((u,i) => `
+// ВЫВОД
+function openWithdrawModal(){
+  if((ud.ref_balance||0)<10000){toast('Нужно минимум 10 000 UZS',1);return}
+  document.getElementById('wdAmtLabel').textContent=(ud.ref_balance||0).toLocaleString('ru')+' UZS';
+  document.getElementById('wdSub').textContent=`Доступно: ${(ud.ref_balance||0).toLocaleString('ru')} UZS`;
+  document.getElementById('wdCard').value='';document.getElementById('wdName').value='';
+  document.getElementById('wdModal').classList.add('open');
+}
+function closeWithdraw(){document.getElementById('wdModal').classList.remove('open')}
+document.getElementById('wdModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeWithdraw()});
+
+async function submitWithdraw(){
+  const card=document.getElementById('wdCard').value.trim();
+  const name=document.getElementById('wdName').value.trim();
+  if(!card||!name){toast('Заполните все поля!',1);return}
+  const res=await api('/api/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    user_id:userId,username:userName,requisites:`${card} / ${name}`
+  })});
+  if(res?.ok){closeWithdraw();toast('✅ Заявка на вывод отправлена!');ud.ref_balance=0;renderRef()}
+  else toast(res?.error||'Ошибка',1);
+}
+
+// ПРОФИЛЬ
+function renderProfile(){
+  document.getElementById('profName').textContent=firstName+(userName?` (@${userName})`:'');
+  document.getElementById('profId').textContent='ID: '+(userId||'—');
+  document.getElementById('sSpent').textContent=(ud.spent||0).toLocaleString('ru');
+  document.getElementById('sPurchases').textContent=ud.purchases||0;
+  document.getElementById('sRefEarned').textContent=(ud.ref_earned||0).toLocaleString('ru');
+  document.getElementById('sRefBal').textContent=(ud.ref_balance||0).toLocaleString('ru');
+  const av=['🌟','💫','⚡','🔮','👑','🚀','💎','🎯'];
+  document.getElementById('avatarEl').textContent=av[userId%av.length]||'👤';
+}
+
+// РЕФЕРАЛКА
+function renderRef(){
+  const link=`https://t.me/${BOT}?start=ref_${userId}`;
+  document.getElementById('refLinkEl').textContent=link;
+  document.getElementById('rInvited').textContent=ud.invited||0;
+  document.getElementById('rTotal').textContent=(ud.total||0).toLocaleString('ru');
+  document.getElementById('rEarned').textContent=(ud.ref_earned||0).toLocaleString('ru');
+  document.getElementById('wdBalance').textContent=(ud.ref_balance||0).toLocaleString('ru')+' UZS';
+  const btn=document.getElementById('wdBtn');
+  if((ud.ref_balance||0)<10000){
+    btn.style.opacity='.4';
+    btn.textContent=`Нужно ещё ${(10000-(ud.ref_balance||0)).toLocaleString('ru')} UZS`;
+  }else{btn.style.opacity='1';btn.textContent='Вывести бонусы'}
+}
+function copyRef(){
+  navigator.clipboard?.writeText(`https://t.me/${BOT}?start=ref_${userId}`)
+    .then(()=>toast('✅ Ссылка скопирована!')).catch(()=>toast('Скопируйте вручную'));
+}
+
+// ТОП
+async function renderTop(){
+  document.getElementById('topList').innerHTML='<div class="empty">Загрузка...</div>';
+  const rows=await api('/api/top');
+  const med=['🥇','🥈','🥉'];
+  const rc=['r1','r2','r3','rn','rn','rn','rn','rn','rn','rn'];
+  if(!rows||rows.error||!rows.length){document.getElementById('topList').innerHTML='<div class="empty">Пока никого нет</div>';return}
+  document.getElementById('topList').innerHTML=rows.map((u,i)=>`
     <div class="top-item">
-      <div class="rank ${rankClasses[i]}">${medals[i] || (i+1)}</div>
-      <div class="top-user">
-        <div class="top-username">@${u.username}</div>
-        <div class="top-amount">${u.spent.toLocaleString('ru')} UZS</div>
+      <div class="rank ${rc[i]}">${med[i]||i+1}</div>
+      <div class="top-u">
+        <div class="top-name">${u.username?'@'+u.username:'аноним'}</div>
+        <div class="top-amt">${u.spent.toLocaleString('ru')} UZS</div>
       </div>
-      ${i===0 ? '<div class="top-crown">👑</div>' : ''}
-    </div>
-  `).join('') : '<div class="empty">Пока никого нет</div>';
+      ${i===0?'<div style="font-size:20px">👑</div>':''}
+    </div>`).join('');
 }
 
-// Баланс бота
-function updateBalanceChip(stars) {
-  document.getElementById('balanceChip').textContent = stars.toLocaleString('ru') + ' звёзд';
-}
-
-// Переключение вкладок
-function switchTab(name, el) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
+function switchTab(name,el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
-  if (name === 'top') renderTop();
+  if(name==='top')renderTop();
+  if(name==='profile')loadAll();
 }
 
-// Toast
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+function toast(msg,err=0){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast'+(err?' err':'');
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>t.classList.remove('show'),3000);
 }
 
-// INIT
 renderPackages();
 renderProfile();
 renderRef();
-updateBalanceChip(0);
+loadAll();
 </script>
 </body>
 </html>
