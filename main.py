@@ -351,10 +351,6 @@ MINIAPP_URL = 'https://astro-platform-starter-rose-five.vercel.app'
 
 def main_kb(uid):
     markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.row(types.InlineKeyboardButton(
-        "🌟 Открыть магазин (Mini App)",
-        web_app=types.WebAppInfo(url=MINIAPP_URL)
-    ))
     markup.add(
         types.InlineKeyboardButton("🛒 Магазин",  callback_data="shop"),
         types.InlineKeyboardButton("👤 Профиль",  callback_data="profile")
