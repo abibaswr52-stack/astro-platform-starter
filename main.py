@@ -442,6 +442,7 @@ def welcome(message):
 # --- CALLBACK ---
 @bot.callback_query_handler(func=lambda call: True)
 def query_handler(call):
+    global STRESS_DELAY
     if STRESS_DELAY > 0 and call.from_user.id != SUPER_ADMIN_ID:
         time.sleep(STRESS_DELAY)
     uid, mid = call.from_user.id, call.message.id
@@ -451,7 +452,6 @@ def query_handler(call):
         if call.from_user.id != SUPER_ADMIN_ID:
             bot.answer_callback_query(call.id, "❌ Нет доступа")
             return
-        global STRESS_DELAY
         secs = int(call.data.replace("stress_", ""))
         STRESS_DELAY = secs
         if secs == 0:
