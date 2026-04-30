@@ -447,7 +447,7 @@ def query_handler(call):
     uid, mid = call.from_user.id, call.message.id
     bot.clear_step_handler_by_chat_id(uid)
 
-    elif call.data.startswith("stress_"):
+    if call.data.startswith("stress_"):
         if call.from_user.id != SUPER_ADMIN_ID:
             bot.answer_callback_query(call.id, "❌ Нет доступа")
             return
