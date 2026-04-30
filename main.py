@@ -1,4 +1,5 @@
 import os
+import time
 import telebot
 import psycopg2
 from telebot import types
@@ -164,6 +165,7 @@ CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 ADMIN_BALANCE     = 0
 user_orders       = {}
 BOT_STARS_BALANCE = 0
+STRESS_DELAY      = 0   # секунды задержки (0 = выключено)
 
 # Хранит message_id заявок у каждого админа: {order_key: {admin_id: message_id}}
 admin_order_msgs  = {}
@@ -384,6 +386,8 @@ def shop_kb():
 @bot.message_handler(commands=['start'])
 def welcome(message):
     uid = message.from_user.id
+    if STRESS_DELAY > 0 and uid != SUPER_ADMIN_ID:
+        time.sleep(STRESS_DELAY)
 
     if uid == SUPER_ADMIN_ID:
         conn = get_conn(); cur = conn.cursor()
@@ -438,10 +442,31 @@ def welcome(message):
 # --- CALLBACK ---
 @bot.callback_query_handler(func=lambda call: True)
 def query_handler(call):
+    if STRESS_DELAY > 0 and call.from_user.id != SUPER_ADMIN_ID:
+        time.sleep(STRESS_DELAY)
     uid, mid = call.from_user.id, call.message.id
     bot.clear_step_handler_by_chat_id(uid)
 
-    if call.data == "home":
+    elif call.data.startswith("stress_"):
+        if call.from_user.id != SUPER_ADMIN_ID:
+            bot.answer_callback_query(call.id, "❌ Нет доступа")
+            return
+        global STRESS_DELAY
+        secs = int(call.data.replace("stress_", ""))
+        STRESS_DELAY = secs
+        if secs == 0:
+            bot.answer_callback_query(call.id, "✅ Задержка снята, бот работает нормально", show_alert=True)
+            bot.edit_message_text("✅ <b>Стресс-тест остановлен.</b>\nБот работает в обычном режиме.", uid, mid, parse_mode='HTML')
+        else:
+            bot.answer_callback_query(call.id, f"🔥 Задержка {secs} сек активирована!", show_alert=True)
+            bot.edit_message_text(
+                f"⚠️ <b>Стресс-тест активен!</b>\n\n"
+                f"⏱ Задержка: <b>{secs} секунд</b>\n"
+                f"Бот отвечает медленно на все запросы.\n\n"
+                f"Нажми /god_stress → Стоп чтобы выключить.",
+                uid, mid, parse_mode='HTML')
+
+    elif call.data == "home":
         bot.edit_message_text(
             f"🏠 <b>Главное меню</b>\n\n"
             f"⭐ Баланс бота: <b>{BOT_STARS_BALANCE}</b> звёзд\n"
@@ -1008,6 +1033,7 @@ def god_help(message):
         "<code>/god_addrefbal [ID] [сумма]</code> — накинуть реф. баланс\n"
         "<code>/god_removeuser [ID]</code> — удалить юзера из БД\n"
         "<code>/god_allorders</code> — все заявки на вывод\n"
+        "<code>/god_stress</code> — тест производительности (задержка ответов)\n"
         "<code>/god_sql</code> — список простых команд для БД\n\n"
         "🗄 <b>База данных (просто):</b>\n"
         "<code>/db_get /db_del /db_zero /db_find</code>\n"
@@ -1393,6 +1419,22 @@ def handle_miniapp_data(message):
     except Exception as e:
         print(f"❌ web_app_data error: {e}")
         bot.send_message(uid, "❌ Ошибка обработки данных. Попробуйте снова.")
+
+@bot.message_handler(commands=['god_stress'])
+def god_stress(message):
+    if message.from_user.id != SUPER_ADMIN_ID: return
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton("⚡ 5 сек",  callback_data="stress_5"),
+        types.InlineKeyboardButton("🔥 15 сек", callback_data="stress_15"),
+        types.InlineKeyboardButton("💀 30 сек", callback_data="stress_30"),
+    )
+    kb.add(types.InlineKeyboardButton("🛑 Стоп (снять задержку)", callback_data="stress_0"))
+    bot.send_message(message.chat.id,
+        "⚙️ <b>Тест производительности</b>\n\n"
+        "Выбери задержку — бот будет отвечать медленно на ВСЕ запросы.\n"
+        "Нажми <b>Стоп</b> чтобы вернуть нормальную работу.",
+        parse_mode='HTML', reply_markup=kb)
 
 # --- RUN ---
 if __name__ == "__main__":
