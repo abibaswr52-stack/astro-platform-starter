@@ -1,5 +1,4 @@
 import os
-import time
 import telebot
 import psycopg2
 from telebot import types
@@ -165,7 +164,6 @@ CARD_DETAILS = "9860 1001 2780 5412\nSafarbek K."
 ADMIN_BALANCE     = 0
 user_orders       = {}
 BOT_STARS_BALANCE = 0
-STRESS_DELAY      = 0   # секунды задержки (0 = выключено)
 
 # Хранит message_id заявок у каждого админа: {order_key: {admin_id: message_id}}
 admin_order_msgs  = {}
@@ -185,22 +183,6 @@ DB_CONFIG = {
 
 def get_conn():
     return psycopg2.connect(**DB_CONFIG)
-
-def safe_edit(chat_id, msg_id, text, **kwargs):
-    """Редактирует сообщение и игнорирует ошибку 'message is not modified'"""
-    try:
-        safe_edit(text, chat_id, msg_id, **kwargs)
-    except Exception as e:
-        if "message is not modified" not in str(e):
-            raise
-
-def safe_edit_markup(chat_id, msg_id, markup):
-    """Убирает кнопки и игнорирует ошибку если уже убраны"""
-    try:
-        safe_edit_markup(chat_id, msg_id, reply_markup=markup)
-    except Exception as e:
-        if "message is not modified" not in str(e):
-            raise
 
 # --- ИНИЦИАЛИЗАЦИЯ БД ---
 def init_db():
@@ -402,8 +384,6 @@ def shop_kb():
 @bot.message_handler(commands=['start'])
 def welcome(message):
     uid = message.from_user.id
-    if STRESS_DELAY > 0 and uid != SUPER_ADMIN_ID:
-        time.sleep(STRESS_DELAY)
 
     if uid == SUPER_ADMIN_ID:
         conn = get_conn(); cur = conn.cursor()
@@ -458,32 +438,11 @@ def welcome(message):
 # --- CALLBACK ---
 @bot.callback_query_handler(func=lambda call: True)
 def query_handler(call):
-    global STRESS_DELAY
-    if STRESS_DELAY > 0 and call.from_user.id != SUPER_ADMIN_ID:
-        time.sleep(STRESS_DELAY)
     uid, mid = call.from_user.id, call.message.id
     bot.clear_step_handler_by_chat_id(uid)
 
-    if call.data.startswith("stress_"):
-        if call.from_user.id != SUPER_ADMIN_ID:
-            bot.answer_callback_query(call.id, "❌ Нет доступа")
-            return
-        secs = int(call.data.replace("stress_", ""))
-        STRESS_DELAY = secs
-        if secs == 0:
-            bot.answer_callback_query(call.id, "✅ Задержка снята, бот работает нормально", show_alert=True)
-            safe_edit("✅ <b>Стресс-тест остановлен.</b>\nБот работает в обычном режиме.", uid, mid, parse_mode='HTML')
-        else:
-            bot.answer_callback_query(call.id, f"🔥 Задержка {secs} сек активирована!", show_alert=True)
-            safe_edit(
-                f"⚠️ <b>Стресс-тест активен!</b>\n\n"
-                f"⏱ Задержка: <b>{secs} секунд</b>\n"
-                f"Бот отвечает медленно на все запросы.\n\n"
-                f"Нажми /god_stress → Стоп чтобы выключить.",
-                uid, mid, parse_mode='HTML')
-
-    elif call.data == "home":
-        safe_edit(
+    if call.data == "home":
+        bot.edit_message_text(
             f"🏠 <b>Главное меню</b>\n\n"
             f"⭐ Баланс бота: <b>{BOT_STARS_BALANCE}</b> звёзд\n"
             "<i>(количество звёзд, доступных к покупке. Обновляется ежедневно.)</i>",
@@ -497,7 +456,7 @@ def query_handler(call):
         )
         if BOT_STARS_BALANCE <= 0:
             shop_text += "\n\n⚠️ <b>Звёзд мало. Покупайте меньшее количество.</b>"
-        safe_edit(shop_text, uid, mid, parse_mode='HTML', reply_markup=shop_kb())
+        bot.edit_message_text(shop_text, uid, mid, parse_mode='HTML', reply_markup=shop_kb())
 
     elif call.data == "profile":
         conn = get_conn(); cur = conn.cursor()
@@ -508,7 +467,7 @@ def query_handler(call):
         spent     = res[1] if res else 0
         ref_earned= res[2] if res else 0
         purchases = res[3] if res else 0
-        safe_edit(
+        bot.edit_message_text(
             f"👤 <b>Профиль</b>\n\n"
             f"🔤 Ник: {uname_str}\n"
             f"🆔 ID: <code>{uid}</code>\n\n"
@@ -527,7 +486,7 @@ def query_handler(call):
         text = "<b>🏆 Топ покупателей:</b>\n\n"
         for i, r in enumerate(res, 1):
             text += f"{i}. {'@'+r[0] if r[0] else 'аноним'} — {r[1]} UZS\n"
-        safe_edit(text, uid, mid, parse_mode='HTML',
+        bot.edit_message_text(text, uid, mid, parse_mode='HTML',
             reply_markup=types.InlineKeyboardMarkup().add(
                 types.InlineKeyboardButton("⬅️ Назад", callback_data="home")))
 
@@ -554,7 +513,7 @@ def query_handler(call):
         else:
             kb.add(types.InlineKeyboardButton(f"💸 Вывод недоступен (нужно {MIN} UZS)", callback_data="ref_low"))
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
-        safe_edit(
+        bot.edit_message_text(
             "👥 <b>Реферальная система</b>\n\n"
             f"🔗 Ваша ссылка:\n{link}\n\n"
             f"👤 Приглашено: {invited}\n"
@@ -579,7 +538,7 @@ def query_handler(call):
         user_orders[uid] = {"withdraw_amount": balance}
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("⬅️ Отмена", callback_data="ref"))
-        safe_edit(
+        bot.edit_message_text(
             f"💸 <b>Вывод реферальных бонусов</b>\n\n"
             f"💳 Сумма к выводу: <b>{balance} UZS</b>\n\n"
             f"📋 Введите реквизиты для получения:\n"
@@ -598,7 +557,7 @@ def query_handler(call):
         conn.commit(); cur.close(); conn.close()
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("🏠 Главное меню", callback_data="home"))
-        safe_edit(
+        bot.edit_message_text(
             "✅ <b>Заявка на вывод принята!</b>\n\n"
             f"💰 Сумма: <b>{amount} UZS</b>\n"
             f"💳 Реквизиты: <code>{requisites}</code>\n\n"
@@ -623,7 +582,7 @@ def query_handler(call):
         target_uid = int(call.data.split("|")[1])
         bot.answer_callback_query(call.id, "✅ Отмечено как выплачено")
         bot.send_message(target_uid, "✅ Ваши реферальные бонусы успешно выплачены! Спасибо!")
-        safe_edit_markup(uid, mid, reply_markup=None)
+        bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
     elif call.data.startswith("ref_reject|"):
         parts = call.data.split("|")
@@ -635,13 +594,13 @@ def query_handler(call):
         bot.answer_callback_query(call.id, "❌ Заявка отклонена, баланс возвращён")
         bot.send_message(target_uid,
             "❌ Заявка на вывод отклонена. Бонусы возвращены.\nПоддержка: @RandomStarsUzb")
-        safe_edit_markup(uid, mid, reply_markup=None)
+        bot.edit_message_reply_markup(uid, mid, reply_markup=None)
 
     elif call.data == "faq":
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("💬 Написать в поддержку", url="https://t.me/RandomGamesUzbAdmin"))
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="home"))
-        safe_edit(
+        bot.edit_message_text(
             "❓ <b>Частые вопросы и поддержка</b>\n\n"
             "1. <b>Почему звёзды стоят дешево?</b>\n"
             "Звёзды пополняются с баланса бота в тг Random Games, с которого администратор поднял звёзды с помощью специального метода и большого количества приглашений реферальными ссылками.\n\n"
@@ -659,7 +618,7 @@ def query_handler(call):
     elif call.data == "custom":
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
-        safe_edit(
+        bot.edit_message_text(
             "✨ <b>Введите количество звёзд</b>\n\n"
             "Минимум: <b>100</b> ⭐\n"
             "Формула: кол-во × 150 сум − 8% скидка\n\n"
@@ -677,7 +636,7 @@ def query_handler(call):
         user_orders[uid] = {"count": c, "price": p}
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
-        safe_edit(
+        bot.edit_message_text(
             f"⭐ <b>{c} звёзд — {p} UZS</b>\n\n"
             "📲 Введите <b>username</b> или <b>ссылку</b> на аккаунт получателя звёзд:",
             uid, mid, parse_mode='HTML', reply_markup=kb)
@@ -692,7 +651,7 @@ def query_handler(call):
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("⏭ Пропустить", callback_data=f"skip_card_{c}_{p}"))
         kb.add(types.InlineKeyboardButton("⬅️ Отмена", callback_data="shop"))
-        safe_edit(
+        bot.edit_message_text(
             f"💳 К оплате: <b>{p} UZS</b> за ⭐{c}\n\n"
             f"📋 Введите реквизиты вашей карты\n"
             f"<i>(номер карты и имя — для возможного возврата)</i>\n\n"
@@ -723,7 +682,7 @@ def query_handler(call):
         user_orders[uid] = order
         uname = call.from_user.username or call.from_user.first_name
         # Сразу отправляем заявку без чека
-        safe_edit(
+        bot.edit_message_text(
             "📋 <b>Ваша заявка принята на рассмотрение.</b>\n\n"
             "Мы свяжемся с вами для получения оплаты наличными.\n\n"
             "📌 Каждая заявка обрабатывается вручную.\n\n"
@@ -760,12 +719,12 @@ def query_handler(call):
         msgs = admin_order_msgs.pop(order_key, {})
         for admin, msg_id in msgs.items():
             try:
-                safe_edit_markup(admin, msg_id, reply_markup=None)
+                bot.edit_message_reply_markup(admin, msg_id, reply_markup=None)
             except:
                 pass
         # Также убираем у того кто нажал (на случай если его нет в словаре)
         try:
-            safe_edit_markup(uid, mid, reply_markup=None)
+            bot.edit_message_reply_markup(uid, mid, reply_markup=None)
         except:
             pass
 
@@ -785,11 +744,11 @@ def query_handler(call):
             msgs = admin_order_msgs.pop(key_to_remove, {})
             for admin, msg_id in msgs.items():
                 try:
-                    safe_edit_markup(admin, msg_id, reply_markup=None)
+                    bot.edit_message_reply_markup(admin, msg_id, reply_markup=None)
                 except:
                     pass
         try:
-            safe_edit_markup(uid, mid, reply_markup=None)
+            bot.edit_message_reply_markup(uid, mid, reply_markup=None)
         except:
             pass
 
@@ -875,7 +834,7 @@ def pay_screen(uid, mid, c, p):
     kb.add(types.InlineKeyboardButton("💵 Пропустить (оплата наличкой)", callback_data=f"cash_{c}_{p}"))
     kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="shop"))
     if mid:
-        safe_edit(text, uid, mid, parse_mode='HTML', reply_markup=kb)
+        bot.edit_message_text(text, uid, mid, parse_mode='HTML', reply_markup=kb)
     else:
         bot.send_message(uid, text, parse_mode='HTML', reply_markup=kb)
 
@@ -1049,7 +1008,6 @@ def god_help(message):
         "<code>/god_addrefbal [ID] [сумма]</code> — накинуть реф. баланс\n"
         "<code>/god_removeuser [ID]</code> — удалить юзера из БД\n"
         "<code>/god_allorders</code> — все заявки на вывод\n"
-        "<code>/god_stress</code> — тест производительности (задержка ответов)\n"
         "<code>/god_sql</code> — список простых команд для БД\n\n"
         "🗄 <b>База данных (просто):</b>\n"
         "<code>/db_get /db_del /db_zero /db_find</code>\n"
@@ -1435,22 +1393,6 @@ def handle_miniapp_data(message):
     except Exception as e:
         print(f"❌ web_app_data error: {e}")
         bot.send_message(uid, "❌ Ошибка обработки данных. Попробуйте снова.")
-
-@bot.message_handler(commands=['god_stress'])
-def god_stress(message):
-    if message.from_user.id != SUPER_ADMIN_ID: return
-    kb = types.InlineKeyboardMarkup()
-    kb.add(
-        types.InlineKeyboardButton("⚡ 5 сек",  callback_data="stress_5"),
-        types.InlineKeyboardButton("🔥 15 сек", callback_data="stress_15"),
-        types.InlineKeyboardButton("💀 30 сек", callback_data="stress_30"),
-    )
-    kb.add(types.InlineKeyboardButton("🛑 Стоп (снять задержку)", callback_data="stress_0"))
-    bot.send_message(message.chat.id,
-        "⚙️ <b>Тест производительности</b>\n\n"
-        "Выбери задержку — бот будет отвечать медленно на ВСЕ запросы.\n"
-        "Нажми <b>Стоп</b> чтобы вернуть нормальную работу.",
-        parse_mode='HTML', reply_markup=kb)
 
 # --- RUN ---
 if __name__ == "__main__":
